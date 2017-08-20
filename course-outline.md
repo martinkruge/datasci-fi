@@ -18,26 +18,23 @@ The following is an intended lecture schedule but is subject to change! The whol
 |        | Recommender systems | User/item-based recommenders |  |
 |        |                     | Matrix factorization |  |
 |3        | Data collection |  Scraping data from the web    | rvest  |
-|        |    | Accessing APIs  | httr, twitteR, streamR  |
-|4      |  | Working with text     | stringr | R4DS-ch14 
-|        | Text mining | Analyzing text | tidytext | TMR-ch3
-|5        | | n-gram models | tidytext | TMR-ch3
+|      | Text mining  | Working with text     | stringr | R4DS-ch14 
+|4        |  | Analyzing text | tidytext | TMR-ch1, TMR-ch7
 |        | | Text generation |  | 
-|    | | Working with dates                 | lubridate | R4DS-ch16
-|6    |  | Sentiment analysis                 | tidytext | TMR-ch2
-|       |               | Bag-of-words models, tf-idf     | tidytext | TMR-ch4
-|7       | Neural networks | Stochastic gradient descent    |     |
-|        |                 | Backpropagation                |     |
-|        |                 | Introducing *keras*            | keras    |
+|5    |  | Sentiment analysis                 | tidytext | TMR-ch2
+|6     | | Bag-of-words models, tf-idf     | tidytext |TMR-ch4
+|    | Data collection | Accessing APIs  | httr, twitteR, streamR  |
+|7     | Text mining | Topic modelling | tidytext | TMR-ch6
 |8       | Visualization |  | ggplot2 | R4DS-ch3
-|9       | Deep learning | Convolutional neural networks | keras    |
+|9       | Neural networks | Stochastic gradient descent    |     |
+|        |                 | Backpropagation                |     |
+|        |                 | Introducing *keras*            | keras   |
+|10       |  | Convolutional neural networks | keras    |
 |        |               | Computer vision / image classification |   |
 |        |               | Setting up Amazon Web Services for GPU computing |   
-|10       | Communication | Make your own R package | Roxygen2    |
-|        |                | Make your own Shiny app             | shiny    |
-|       |       |   More with markdown (bookdown, notebooks) | |
-|11      | Deep learning | More convolutional neural networks   | keras    |
-|12      |               | Recap / Challenge feedback / Catch-up   |       |
+|11       | Communication | Make your own R package | Roxygen2    |
+|        |                | Make your own Shiny app             | shiny
+|12      |  | More convolutional neural networks   | keras
 
 R4DS = R for Data Science (2017) Hadley Wickham and Garrett Grolemund (available at http://r4ds.had.co.nz/)
 
@@ -61,8 +58,8 @@ There are two assignments and a small number (2-3) of smaller "exercises" to com
 
 |Assessment |  General area   |Handed out | Due date | Counts
 |--------|-----|-----|-----|-----
-|Assignment 1  | Recommender systems  |  14 Aug | 30 Sep | 20%
-|Assignment 2  | Image classification  |  21 Aug | 18 Sep  | 20%
+|Assignment 1  | Recommender systems  |  18 Aug | 5 Sep | 20%
+|Assignment 2  | Text mining  |  28 Aug | 18 Sep  | 20%
 |Small exercises | Various | TBA | TBA | 10%
 |Final | Everything | | 26-30 Sep (TBA) | 50%
 
@@ -74,7 +71,7 @@ For the most part I'll be basing each lecture around an jupyter notebook that co
 
 After the lecture you should go through the notebook at your own pace and absorb all the details, making sure you understand what each bit of code does. Making sure you can reproduce the results on your own i.e. without the notebook, is a good test of understanding. Each notebook will have a few exercises at the end for you to try. To use the notebooks directly you need to install the R kernel for jupyter notebook, see [here](https://github.com/IRkernel/IRkernel/blob/master/README.md). I will also make equivalent .Rmd files available (these just aren't as nice and interactive for class).
 
-The notebooks will generally cover the topics at an introductory-to-intermediate level. I really hope that you will find them interesting enough to want to learn more (maybe not about *every* topic, but more often than not). There is a huge amount of material on the web about all the topics we'll cover. I'll maintain a list of additional readings (the table above already contains so me), but you'll benefit a lot from reading widely. If you find something interesting, let everyone know -- perhaps we can discuss it further in class.
+The notebooks will generally cover the topics at an introductory-to-intermediate level. I really hope that you will find them interesting enough to want to learn more (maybe not about *every* topic, but more often than not). There is a huge amount of material on the web about all the topics we'll cover. I'll maintain a list of additional readings (the table above already contains some), but you'll benefit a lot from reading widely. If you find something interesting, let everyone know -- perhaps we can discuss it further in class.
 
 I expect that to get the maximum benefit from the class you would probably need to do about 8 hours of self-study outside of lecture times (not counting assignments). Having said that, this is the first time the module is being run, so I really have no idea. Feedback is welcome (if you feel you're spending way too much time on the course, or feel you're learning way too little/much).
 
@@ -86,6 +83,6 @@ In the interests of getting fast feedback to everyone, we'll also be using [Slac
 
 ### Sources and references
 
-I have borrowed extensively from other peoples' material to create this course, and its not my intention to pass off work as my own when its not. My two main sources are the [R for Data Science](http://r4ds.had.co.nz/) and [Text Mining with R](http://tidytextmining.com/) listed above, and each notebook has further references to source material, but if you find I've missed an attribution please let me know. As this material will be put on the web, the same goes for any material that is incorrectly shared.
+I have borrowed extensively from other peoples' material to create this course, and its not my intention to pass off work as my own when its not. My two main sources are [R for Data Science](http://r4ds.had.co.nz/) and [Text Mining with R](http://tidytextmining.com/) listed above, and each notebook has further references to source material, but if you find I've missed an attribution please let me know. As this material will be put on the web, the same goes for any material that is incorrectly shared.
 
 
