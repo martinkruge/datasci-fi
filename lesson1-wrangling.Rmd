@@ -76,6 +76,8 @@ Tibbles are a special kind of dataframe that work well with tidyverse packages (
 ```{r}
 # convert ratings to a "tibble"
 ratings <- as.tibble(ratings)
+
+class(ratings)
 ```
 
 A nice feature of tibbles is that if you display them in the console (by typing `ratings`, for example) only first few rows and columns are shown. Unfortunately this doesn't carry over to jupyter notebook, so I need to explicitly say `print(ratings)` or all the rows are shown.
@@ -117,6 +119,9 @@ Here we illustrate the use of `filter()` by extracting user 1's observations fro
 ```{r}
 u1 <- filter(ratings, userId == 1)
 u1
+
+class(ratings)
+
 ```
 
 Next we extract the observations for user 1 that received a rating greater than 3. Multiple filter conditions are created with `&` (and) and `|` (or).
@@ -129,15 +134,15 @@ filter(ratings, userId == 1 & rating > 3)
 Here's another way of writing the same condition as above:
 
 
-```{r}
-filter(ratings, userId == 1, rating > 3)
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+filter(ratings, userId == 1, rating > 3)  # Not working
 ```
 
 The `%in%` command is often useful when using dplyr verbs:
 
 
 ```{r}
-filter(ratings, userId == 1, rating %in% c(1,4))
+filter(.data$ratings, userId == 1, rating %in% c(1,4))
 ```
 
 ## Introducing the pipe
