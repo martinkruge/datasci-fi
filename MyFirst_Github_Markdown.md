@@ -1,7 +1,7 @@
 MyFirst Github Markdown
 ================
 Martin Kruger
-20 August 2017
+2017-08-20
 
 R Markdown
 ----------
