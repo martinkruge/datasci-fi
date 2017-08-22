@@ -144,7 +144,7 @@ Here's another way of writing the same condition as above:
 
 
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
-filter(ratings, userId == 1, rating > 3)  # Not working
+filter(ratings, userId == 1, rating > 3)  
 ```
 
 The `%in%` command is often useful when using dplyr verbs:
@@ -176,7 +176,7 @@ The main usefulness of the pipe is when combining multiple operations:
 ```{r}
 # first filter on userId then on rating
 u1_likes <- ratings %>% filter(userId == 1) %>% filter(rating > 3)
-u1_likes
+u1_likes <- as.tibble(u1_likes)
 ```
 
 
@@ -221,7 +221,8 @@ Select is a bit like `filter()` for columns. The syntax is straightforward, the 
 
 
 ```{r}
-select(u1_likes, title, rating)
+select(u1_likes, title)
+
 ```
 
 To exclude variables just put a minus sign in front of them:

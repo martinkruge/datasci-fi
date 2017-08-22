@@ -30,7 +30,8 @@ Nevertheless, it will be useful to have a rough idea how everything fits togethe
 * An HTML file, and hence a web page, consists of two main parts: HTML **tags** and content. HTML tags are the parts of a web page that define how content is formatted and displayed in a web browser. Its easiest to explain with a small example. Below is a minimal HTML file: the tags are the commands within angle brackets e.g. `<head>`. Try copying the text below to a text editor, save as .html, and open in your browser. Tags can be customised with **tag attributes**.
 
 ---
-```<html>
+```{html}
+<html>
  <head>
   <title>A simple webpage</title>
  </head>
@@ -39,7 +40,8 @@ Nevertheless, it will be useful to have a rough idea how everything fits togethe
   Some content. More <b>very important</b> content.
 
  </body>
-</html>```
+</html>
+```
 ---
 
 * CSS is **Cascading Style Sheets**, a "style sheet language". A style sheet language is a programming language that controls how certain kinds of documents are structured. CSS is a style sheet language for markup documents like those written using HTML. Style sheets define things like the colour and layout of text and other HTML tags. Separating presentation from content is often useful e.g. multiple HTML pages can share formatting through a shared CSS (.css) file.
@@ -83,7 +85,9 @@ We extract relevant information from the document with `html_nodes`. This return
 
 
 ```{r}
-ewn_elements <- html_nodes(x = ewn_page, css = ".article-short h4 , h1")
+#ewn_elements <- html_nodes(x = ewn_page, css = ".article-short h4 , h1")
+ewn_elements <- html_nodes(x = ewn_page, css = ".colummns article h4")
+
 ewn_elements
 ```
 
@@ -115,6 +119,7 @@ Extract the table element(s) with `html_nodes()`.
 
 ```{r}
 cric_elements <- html_nodes(x = cric_page, css = "table")
+cric_elements
 ```
 
 View the extracted elements, and see we only want the first one.
@@ -172,6 +177,11 @@ for(i in suburb_pages){
   house_links_i <- str_subset(suburb_i_links,"(for-sale).*(9074/)[0-9]")
   house_links <- c(house_links, house_links_i)
 }
+
+#house_links
+#unique(house_links)
+#sample(unique(house_links))
+
 # remove any duplicates and reorder
 house_links <- sample(unique(house_links))
 ```
