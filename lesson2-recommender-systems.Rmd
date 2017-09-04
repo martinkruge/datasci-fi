@@ -27,6 +27,8 @@ This notebook is based quite closely on the following sources:
 ### Load required packages and the dataset we created last lesson
 
 ```{r}
+rm(list=ls())
+
 library(tidyverse)
 
 load("output/recommender.RData")
@@ -49,7 +51,7 @@ A really simple recommender system would just recommend the most popular movies 
 
 
 ```{r}
-sort(apply(viewed_movies,2,sum),decreasing = T)
+sort(apply(viewed_movies,2,sum), decreasing = T)
 ```
 
 This approach has an intuitive appeal but is pretty unsophisticated (everyone gets the same recommendations, barring the filtering out of seen movies!) In other words, everyone's vote counts the same.
@@ -118,6 +120,7 @@ colnames(user_similarities) <- row.names(viewed_movies)
 ```{r}
 # who are the most similar users to user 149?
 user_similarities["149",]
+
 ```
 
 Let's see if this makes sense from the viewing histories. Below we show user 149's history, together with the user who is most similar to user 149 (user 303) and another user who is very dissimilar (user 236).
