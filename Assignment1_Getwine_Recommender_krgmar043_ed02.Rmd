@@ -3,18 +3,16 @@ title: "Assignment 1 // Getwine Recommender System"
 author: "Martin Kruger (KRGMAR043)"
 date: '`r format(Sys.Date())`'
 output:
-  html_document:
-    keep_md: yes
-  pdf_document: 
+  pdf_document:
+    df_print: kable
     fig_caption: yes
     keep_tex: yes
     latex_engine: xelatex
     toc: yes
-    toc_depth: 2
-header-includes: 
-  \usepackage{float}
-  \usepackage[section]{placeins}
-  \usepackage{booktabs}
+    toc_depth: 3
+  html_document:
+    keep_md: yes
+header-includes: \usepackage{float} \usepackage[section]{placeins} \usepackage{booktabs}
   \usepackage{graphicx}
 ---
 
@@ -34,43 +32,19 @@ options(xtable.comment=FALSE)
 
 \ 
 
-### Introduction
+## Introduction
 
 The aim of this project is to build a recommender system for Getwine, an online wine retailer (http://getwine.co.za/). The function of the recommender system is to recommend to a user wines that, on the basis of his or her past purchases, they might like to buy in the future. 
 
 
+## Data Exploration & Cleaning
+
+The data that was provided for the project consists of all purchase orders made by 1000 randomly selected Getwine users in 2017. A purchase order is a single “delivery” of wine to a user. A single order can consist of any number and selection of bottles of wine, but usually consists of 12 or more bottles. 
 \ 
 
-### Data Exploration & Cleaning
+The data has been provided in two files:
 
-The data for the project consists of all purchase orders made by 1000 randomly selected Getwine users in 2017. A purchase order is a single “delivery” of wine to a user. A single order can consist of any number and selection of bottles of wine, but usually consists of 12 or more bottles.
-
-The data has been provided in the following two files:
-
-1. **orders.csv**
-Each row in this file constitutes a single customer order. A single order may consist of any number of bottles of wine. The order is identified by a unique key `orders_id` that can be used to identify the wines that were purchased in the accompanying file *order-items.csv*. 
-
-Other variables are:  
-* Customer’s gender  
-* Customer’s date of birth  
-* Customer’s location  
-* Date of purchase  
-* Payment method  
-* Monetary value of order  
-
-The *orders.csv* dataset looks as follows:
-
-```{r}
-tab.rescale <- xtable(head(orders), caption = 'Orders table.')
-print(tab.rescale, scalebox=0.8, include.rownames = TRUE, include.colnames = TRUE, comment = FALSE,  type = 'latex')
-
-```
-
-2. **order-items.csv**
-Contains the wines bought in each order, together with the quantity bought and the price per bottle. 
-
-
-```{r data_load, echo=FALSE, message=FALSE}
+```{r data_load, include=FALSE}
 
 #rm(list=ls()) # Clean up environment
 
@@ -85,36 +59,58 @@ order.items <- as.tibble(read.csv('./assignments/data/order-items.csv', header =
 ```
 
 
+1. **orders.csv**: Each row in this file constitutes a single customer order. A single order may consist of any number of bottles of wine. The order is identified by a unique key `orders_id` that can be used to identify the wines that were purchased in the accompanying file *order-items.csv*. 
 \ 
 
-#### Findings during data exploration:
+  * Other variables are:  
+      + Customer’s gender 
+      + Customer’s date of birth 
+      + Customer’s location 
+      + Date of purchase 
+      + Payment method 
+      + Monetary value of the order 
 
-```{r all_products}
+\ 
 
-# Total list of products
-all.products <- order.items %>% select(products_name) %>% unique()
+The *orders.csv* dataset looks as follows:
+
+```{r, echo=FALSE, results="asis", fig.pos="H"}
+tab.rescale <- xtable(head(orders), caption = 'Layout of the orders table.')
+print(tab.rescale, scalebox=0.7, include.rownames = TRUE, include.colnames = TRUE, comment = FALSE,  type = 'latex')
 
 ```
 
-The `order.items` dataset was used to determine the list of products ordered by customers during the transaction history provided. The complete list of products in the `products_name` field consisted of `r length(all.products)` items.
+\newpage
 
-Inspection of the product names pointed out a few items that can be excluded from the final dataset used for modelling of the recommender system as they are not related to wine purchases. Those 
+2. **order-items.csv**
+Contains the wines bought in each order, together with the quantity bought and the price per bottle. 
+\ 
+
+The *order-items.csv* dataset looks as follows:
+
+```{r, echo=FALSE, results="asis", fig.pos="H"}
+tab.rescale <- xtable(head(order.items), caption = 'Layout of the order-items table.')
+print(tab.rescale, scalebox=0.8, include.rownames = TRUE, include.colnames = TRUE, comment = FALSE,  type = 'latex')
+
+```
 
 
-```{r filtered_products}
+### Findings during data exploration:
+
+```{r all_products, include=FALSE}
 
 # Total list of products
 all.products <- order.items %>% select(products_name) %>% unique()
+dim(all.products) # 336
+```
 
+The `order.items` dataset was used to determine the list of products ordered by customers during the period of the transaction history that was provided. The complete list of products in the `products_name` field consisted of `r dim(all.products)[1]` items.
 
-tab.rescale <- xtable(t(as.data.frame(apply(data.scaled.log.t, 1, summary))),
-                      caption = 'Log transformed and standardised data summary.')
-print(tab.rescale, scalebox=0.8, include.rownames = TRUE, include.colnames = TRUE, comment = FALSE,  type = 'latex')
-
+```{r filtered_products, include=FALSE}
 
 # List of unique products - filter personalised and assorted cases
-order.items %>% 
-  filter(products_price >= 0) %>%
+clean.products <- order.items %>% 
+  filter(products_price >= 0) %>%  # Negative values (discount)
   select(products_name) %>% 
   filter(!str_detect(products_name, 'Personalised Mixed Case')) %>%
   filter(!grepl('TOP SELLING.*Case', products_name)) %>% 
@@ -137,253 +133,22 @@ order.items %>%
   filter(!str_detect(products_name, "Dragon Fiery Ginger Beer 330ml")) %>% 
   filter(!str_detect(products_name, "Citizen Saboteur English IPA 440ml")) %>%
   unique()
+#dim(clean.products)  # 285
 
-#product.list <-
-  
+filtered.products <- anti_join(all.products, clean.products, by=c('products_name')) %>% unique()
+#filtered.products # 51
 ```
 
-The list of products that would be filtered is listed below. 
+Inspection of the product names pointed out `r dim(filtered.products)[1]` items that can be excluded from the final dataset used for modelling of the recommender system as they are not related to wine purchases. 
+
+The products that were excluded are listed in table 3 below.
 
 
-
-
-Our dataset does not contain any explicit measures stating how much a user *likes* a particular product. We therefore have to make use of implicit measures, like the *amount purchased* to deduce a popularity index.
-
-Movies and music examples - listen multiple times, watch once..?
-
-Do we want to recommend wines purchased before? this is a business case decision. 
-
-
-
-```{r data_explore, echo=FALSE, message=FALSE}
-
-# Add total count of bottles per order - take into account cases with multiple bottles
-order.items <- order.items %>% 
-  extract( products_name, into = c("product_count"), regex = "(\\d+)\\sbottles", remove = FALSE) %>%
-  mutate(product_count = as.integer(ifelse(is.na(product_count), 1, product_count))) %>%
-  mutate(product_total_count = product_count * products_quantity) 
-
-
-  
-
-# Keep only order items based on the filtered product list
-filtered.order.items <- semi_join(order.items, product.list, by = "products_name")
-
-filtered.order.items <- droplevels(filtered.order.items)
-product.list <- droplevels(product.list)
-
-
-# Totals per customer per item
-customer.items <-  orders %>% 
-  select(1,5,6) %>% # (cust_id, orders_id, date_purchased)
-  unique() %>% 
-  left_join(filtered.order.items, by = "orders_id") %>%
-  filter(!is.na(products_name)) %>%
-  select(customers_id, orders_id, date_purchased, 
-         products_name, product_count, products_price, products_quantity, product_total_count) %>%
-  mutate(products_total_price = products_quantity*products_price)
-
-
-# Most popular products  
-products_frq <- filtered.order.items %>% 
-  group_by(products_name) %>% 
-  summarize(order_count = n(), 
-            product_total_count = sum(product_total_count),
-            products_total_quantity = sum(products_quantity), 
-            total_sales = sum(products_price*products_quantity)) %>%  
-  arrange(desc(products_total_quantity), desc(order_count), desc(total_sales))
-
-#orders %>% filter(orders_id == 153597)
-#order.items %>% filter(orders_id == 153597)
-
-
-# Regular customers
-customers_frq <- customer.items %>% 
-  group_by(customers_id) %>% 
-  summarize(order_count = n_distinct(orders_id), 
-            product_variety = n_distinct(products_name),
-            product_count = sum(product_total_count),
-            total_products_value = sum(products_total_price)) %>%  
-  arrange(desc(order_count), desc(product_count), desc(total_products_value))
-
-
-# Customer 33266  buys in bulk - remove from dataset - skews volumes
-##customer.items %>% filter(customers_id == 33266)
-##customer.items %>% filter(customers_id %in% c(27464, 42244))
-##customer.items <- customer.items %>% filter(customers_id != 33266)
-
-
-# 
-ordered_products <- customer.items %>% 
-  select(customers_id, products_name, product_total_count) %>%
-  group_by(customers_id, products_name) %>%
-  summarize(total_count = sum(product_total_count)) %>%
-  complete(customers_id, products_name) %>%
-  #mutate(ordered = ifelse(is.na(total_count),0,total_count))  # Based on count
-  mutate(ordered = ifelse(is.na(total_count),0,1))  # Binarized  - mark products purchased with 1=yes, 0=no
-  
- ordered_products_mat <- ordered_products %>%
-  select(customers_id, products_name, ordered) %>%
-  spread(key = products_name, value = ordered)
-
-save(customer.items, customers, filtered.order.items, ordered_products, ordered_products_mat,
-     product.list, file = "./assignments/output/getwine_recommender.RData") 
-```
-\ 
-
-### Recommender System
-
-```{r timeseries}
-
-library(lubridate)
-
-orders$date_purchased <- as_date(orders$date_purchased)
-
-daily_orders <- orders %>%
-  group_by(date_purchased) %>%
-  summarise(count = n())
-
-plot(daily_orders$date_purchased, daily_orders$count, type='h')
-dim(daily_orders)
-
-
+```{r, echo=FALSE, results="asis", fig.pos="H"}
+tab.rescale <- xtable(filtered.products, caption = 'Non wine-sale related products that were removed.')
+print(tab.rescale, scalebox=0.8, include.rownames = TRUE, include.colnames = TRUE, comment = FALSE,  type = 'latex')
 
 ```
-
-#### Tasks to be solved by RS
-
-From the perspective of a particular user -let’s call it active user-, a recommender system is intended to solve 2 particular tasks:
-
-    1. To predict the rating for an item or product, the user has not rated yet.
-    2. To create the list of the top N recommended items
-
-
-
-
-
-We need to convert the data to a matrix form.
-
-```{r, include=FALSE}
-
-#set.seed(790904)
-
-#library(recommenderlab)
-#library(ggplot2)
-
-sorted_my_customers <- as.character(unlist(ordered_products_mat[,1]))
-ordered_products <- as.matrix(ordered_products_mat[,-1])
-row.names(ordered_products) <- sorted_my_customers
-
-```
-
-## User-based collaborative filtering
-
-### The basic idea behind user-based collaborative filtering
-
-A really simple recommender system would just recommend the most popular products (that a customer hasn't ordered before). This information is obtained by summing the values of each column of *ordered products*
-
-
-```{r}
-sort(apply(ordered_products,2,sum), decreasing = T)
-```
-
-This approach has an intuitive appeal but is pretty unsophisticated (everyone gets the same recommendations, barring the filtering out of seen movies!) In other words, everyone's vote counts the same.
-
-User-based CF extends the approach by changing how much each person's vote counts. Specifically, when recommending what I should buy next, a user-based CF system will upweight the votes of people that are "more similar" to me. In this context "similar" means "has ordered many of the same products as me". You can think of this as replacing the 1's in the *ordered_products* matrix with a number that increases with similarity to the user we're trying to recommend a product to.
-
-There are lots of different similarity measures. We'll use cosine similarity.
-
-```{r}
-# function calculating cosine similarity
-cosine_sim <- function(a,b){crossprod(a,b)/sqrt(crossprod(a)*crossprod(b))}
-```
-
-
-
-```{r}
-customer_similarities = matrix(0, nrow = 840, ncol = 840)
-for(i in 1:839){
-  for(j in (i+1):840){
-    customer_similarities[i,j] <- cosine_sim(ordered_products[i,], ordered_products[j,])
-  }
-}
-customer_similarities <- customer_similarities + t(customer_similarities)
-diag(customer_similarities) <- 0
-row.names(customer_similarities) <- row.names(ordered_products)
-colnames(customer_similarities) <- row.names(ordered_products)
-```
-
-
-
-```{r}
-# who are the most similar users to user 41777?
-sort(customer_similarities["41777",],decreasing = T)
-
-# who are the most similar users to user 25301?
-sort(customer_similarities["25301",],decreasing = T)
-
-similar_41777 <- c( 6043,40459,42253 )
-similar_25301 <- c( 1120,2174 )
-
-customer.items %>% filter(customers_id %in% c(41777))
-customer.items %>% filter(customers_id %in% c(25301))
-
-```
-
-```{r}
-customer.items %>% filter(customers_id %in% similar_41777)
-customer.items %>% filter(customers_id %in% similar_25301)
-
-```
-
-
-***
-
-
-#### Collaborative filtering: 
-The algorithms are based on information about similar users or similar items. The two sub-branches are as follows:
-
-##### Item-based collaborative filtering: 
-This recommends to a user the items that are most similar to the user's purchases.
-
-
-##### User-based collaborative filtering: 
-This recommends to a user the items that are the most preferred by similar users.
-
-
-#### Content-based filtering: 
-This is for each user; it defines a user profile and identify the items that match it.
-
-#### Hybrid filtering: 
-This combines different techniques.
-
-#### Knowledge-based filtering: 
-This is uses explicit knowledge about users and items.
-
-\ 
-
-\pagebreak 
-\newpage
-
-### References
-[1]: Collaborative Filtering for Implicit Feedback Datasets. http://yifanhu.net/PUB/cf.pdf
-[2]: https://jessesw.com/Rec-System/
-[3]: https://www.r-bloggers.com/matrix-factorization/
-[4]: https://cran.r-project.org/web/packages/NNLM/vignettes/Fast-And-Versatile-NMF.html
-[5]: http://www.salemmarafi.com/code/collaborative-filtering-r/
-[6]: http://www.dataperspective.info/2014/05/basic-recommendation-engine-using-r.html
-[7]: http://bigdata-doctor.com/recommender-systems-101-practical-example-in-r/
-[8]: https://en.wikipedia.org/wiki/Collaborative_filtering
-[9]: https://en.wikipedia.org/wiki/Cold_start
-[10]: https://en.wikipedia.org/wiki/Recommender_system
-[11]: https://en.wikipedia.org/wiki/Matrix_decomposition
-[12]: https://en.wikipedia.org/wiki/Non-negative_matrix_factorization
-[13]: http://blog.yhat.com/posts/recommender-system-in-r.html
-[14]: https://jessesw.com/Rec-System/
-
-
-
-
 
 
 
