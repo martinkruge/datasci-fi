@@ -27,7 +27,7 @@ This notebook is based quite closely on the following sources:
 ### Load required packages and the dataset we created last lesson
 
 ```{r}
-rm(list=ls())
+#rm(list=ls())
 
 library(tidyverse)
 
@@ -170,7 +170,10 @@ Let's repeat this calculation for all movies and compare recommendation scores:
 
 
 ```{r}
-user_similarities["149",] %*% viewed_movies
+user_similarities["149",]
+viewed_movies
+
+as.data.frame(t(user_similarities["149",] %*% viewed_movies))
 ```
 
 To come up with a final recommendation, we just need to remember to remove movies user 149 has already seen, and sort the remaining movies in descending order of recommendation score.
@@ -237,6 +240,11 @@ lapply(sorted_my_users, user_based_recommendations, user_similarities, viewed_mo
 ```
 
 A variant on the above is a *k-nearest-neighbours* approach that bases recommendations *only on k most similar users*. This is faster when there are many users. Try implement this as an exercise.
+
+
+
+
+
 
 ## Item-based collaborative filtering
 

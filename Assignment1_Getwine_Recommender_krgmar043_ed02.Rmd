@@ -351,7 +351,7 @@ print(tab.rescale, scalebox=0.8, include.rownames = TRUE, include.colnames = TRU
 
 ```
 
-### 4.4 Most regular customers 
+### 4.4 Regular customers 
 
 The next method considered was to base popularity on the number of orders placed by customers, hoping that customers place multiple orders and products would be repeated from one order to the next. This once again was not the case as most customers ordered wine only once. In 737 cases out of the 839 total customers only one order was placed, in 90 cases two orders and in 10 cases 3 orders.
 
@@ -499,17 +499,19 @@ We populate 3x similarity matrix's to store the customer cosine similarity betwe
 
 #------------------------------------------------------------------
 # 1. Similarity matrix based on product ordered or not
-customer_similarities.order = matrix(0, nrow = nrow(customers_frq), ncol = nrow(customers_frq))
+customer_similarities.order <- matrix(0, nrow = nrow(customers_frq), ncol = nrow(customers_frq))
 for(i in 1:(nrow(customers_frq)-1)) {
   for(j in (i+1):nrow(customers_frq)){
     customer_similarities.order[i,j] <- cosine_sim(ordered_products_wide.order[i,], ordered_products_wide.order[j,])
   }
 }
 customer_similarities.order <- customer_similarities.order + t(customer_similarities.order)
-diag(customer_similarities.order) <- 0
+
+diag(customer_similarities.order) <- NA
 row.names(customer_similarities.order) <- row.names(ordered_products_wide.order)
 colnames(customer_similarities.order) <- row.names(ordered_products_wide.order)
 
+customer_similarities.order[which(customer_similarities.order == 0)] <- NA
 
 #------------------------------------------------------------------
 # 2. Similarity matrix based on quantities per product
@@ -520,10 +522,12 @@ for(i in 1:(nrow(customers_frq)-1)) {
   }
 }
 customer_similarities.quantity <- customer_similarities.quantity + t(customer_similarities.quantity)
-diag(customer_similarities.quantity) <- 0
+
+diag(customer_similarities.quantity) <- NA
 row.names(customer_similarities.quantity) <- row.names(ordered_products_wide.quantity)
 colnames(customer_similarities.quantity) <- row.names(ordered_products_wide.quantity)
 
+customer_similarities.quantity[which(customer_similarities.quantity == 0)] <- NA
 
 #------------------------------------------------------------------
 # 3. Similarity matrix based on order count per product
@@ -534,10 +538,21 @@ for(i in 1:(nrow(customers_frq)-1)) {
   }
 }
 customer_similarities.count <- customer_similarities.count + t(customer_similarities.count)
-diag(customer_similarities.count) <- 0
+diag(customer_similarities.count) <- NA
 row.names(customer_similarities.count) <- row.names(ordered_products_wide.count)
 colnames(customer_similarities.count) <- row.names(ordered_products_wide.count)
 
+customer_similarities.count[which(customer_similarities.count == 0)] <- NA
+
+#------------------------------------------------------------------
+
+library(recommenderlab)
+
+affinity.data <- customer_similarities.order
+affinity.matrix <- as(affinity.data,"realRatingMatrix")
+
+
+affinity.matrix@data
 ```
 
 
