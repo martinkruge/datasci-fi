@@ -111,7 +111,7 @@ Tidy data is basically just a way of consistently organizing your data that ofte
 * Each observation has its own row.
 * Each value has its own cell.
 
-This only really makes sense once you work out what the variables and observations are. Of course you can't define a variable as "what's in a column", or all data will be tidy! For example, suppose we have the following data frame, containing movie ratings for 3 users and 4 movies:
+This only really makes sense once you work out what the variables and observations are. Of course you can't define a variable as "what's in a column", or all data will be tidy! For example, suppose we have the following data frame, containing movie ratings for 3 users and 3 movies:
 
 
 ```{r}
@@ -153,8 +153,8 @@ We can move back to an explicit representation of missing values using the `comp
 tidy_ratings_imp %>% complete(nesting(user_id, age, city), title)
 
 # try these:
-# tidy_ratings_imp %>% complete(c(user_id, age, city), title)  # crossed, not nested, will look for all combos
-# tidy_ratings_imp %>% complete(user_id, title) # will treat like rating i.e. will have NAs
+tidy_ratings_imp %>% expand(nesting(user_id, age, city), title)  # crossed, not nested, will look for all combos
+tidy_ratings_imp %>% complete(user_id, title) # will treat like rating i.e. will have NAs
 ```
 
 We can move in the opposite direction (spreading a variable across multiple columns) using the `spread()` function.
@@ -256,7 +256,7 @@ Let's plot the most commonly used words:
 tidy_tweets %>%
   count(word, sort = TRUE) %>%
   filter(rank(desc(n)) <= 20) %>%
-  ggplot(aes(reorder(word,n),n)) + geom_col() + coord_flip() + xlab("")
+  ggplot(aes(reorder(word,n), n)) + geom_col() + coord_flip() + xlab("")
 ```
 
 Not very useful! What's happening here, unsurprisingly, is that common words like "the", "to", etc are coming up most often. We can tell **tidytext** to ignore these words (which are called "stop words"). Let's have a look at a sample of stop words contained in the dictionary used by **tidytext**:
@@ -283,12 +283,18 @@ We look at a few examples below. Try experiment with the input tweets and the re
 # pattern that we want to remove (replace with nothing)
 replace_reg <- "(https?:.*?([\\s]|[a-zA-Z0-9]$))|(www:.*?([\\s]|[a-zA-Z0-9]$))|&amp;|&lt;|&gt;|RT"
 
+replace_reg2 <- "(https?:.*?([\\s]|[a-zA-Z0-9]$))"
+
 # tweet with a link
 tweets$text[39]
 str_replace_all(tweets$text[39], replace_reg, "")
+str_replace_all(tweets$text[39], replace_reg2, "")
+
 # tweet with a link at end of tweet
 tweets$text[2]
 str_replace_all(tweets$text[2], replace_reg, "")
+str_replace_all(tweets$text[2], replace_reg2, "")
+
 # tweet with a link and an &amp; 
 tweets$text[15251]
 str_replace_all(tweets$text[15251], replace_reg, "")
@@ -304,7 +310,7 @@ tidy_tweets <- tweets %>%
     filter(!str_detect(text, "^RT")) %>% # remove retweets
     mutate(text = str_replace_all(text, replace_reg, "")) %>% # remove with a reg exp (http, www, etc)
     unnest_tokens(word, text, token = "regex", pattern = unnest_reg) %>%
-    filter(!word %in% stop_words$word,str_detect(word, "[a-z]")) %>% # remove stop words
+    filter(!word %in% stop_words$word, str_detect(word, "[a-z]")) %>% # remove stop words
   select(date,word,favorite_count) 
 ```
 
@@ -348,7 +354,7 @@ total_tweets <- tidy_tweets %>%
 ```
 
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 tidy_tweets %>%
   group_by(is_prez) %>% 
   count(word, sort = TRUE) %>% # count the number of times word used 

@@ -129,7 +129,7 @@ Note that with all these functions, if we have a vector of strings, the function
 
 
 ```{r}
-str_to_upper(c("String number 1 ", "String number 2", "String 3"))
+str_to_upper(c("String number 1", "String number 2", "String 3"))
 ```
 
 ## Matching patterns with regular expressions
@@ -319,6 +319,7 @@ The `str_detect()` function can be used to determine whether an input string con
 
 
 ```{r}
+x
 str_detect(x, "\\d")
 ```
 
@@ -326,6 +327,7 @@ A useful way to use `str_detect()` is to extract those elements of an input vect
 
 
 ```{r}
+x
 # elements of x containing a digit
 x[str_detect(x, "\\d")]
 # elements of x not containing a digit
@@ -336,6 +338,7 @@ Rather than the above, **stringr** provides a useful wrapper function `str_subse
 
 
 ```{r}
+x
 # gives same result as `x[str_detect(x, "\\d")]`
 str_subset(x, "\\d")
 # extracts indices of elements matching a pattern
@@ -347,6 +350,7 @@ Another useful helper function is `str_count()`, which counts up the number of t
 
 ```{r}
 # number of digits in each element of x
+x
 str_count(x, "\\d")
 ```
 
@@ -356,6 +360,7 @@ The `str_extract()` function extracts the actual text of a match.
 
 
 ```{r}
+x
 str_extract(x, "a[nb]")
 ```
 
@@ -363,6 +368,7 @@ Note that this just returns the *first* match. If we want to return *all* matche
 
 
 ```{r}
+x
 str_extract_all(x, "a[nb]")
 ```
 
@@ -372,6 +378,7 @@ One thing we often want to do is replace a matched pattern with another string. 
 
 
 ```{r}
+x
 str_replace(x,"[aeiou]","-")
 str_replace_all(x,"[aeiou]","-")
 ```

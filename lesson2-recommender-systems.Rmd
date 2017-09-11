@@ -27,7 +27,7 @@ This notebook is based quite closely on the following sources:
 ### Load required packages and the dataset we created last lesson
 
 ```{r}
-#rm(list=ls())
+rm(list=ls())
 
 library(tidyverse)
 
@@ -51,11 +51,7 @@ A really simple recommender system would just recommend the most popular movies 
 
 
 ```{r}
-<<<<<<< HEAD
-sort(apply(viewed_movies,2,sum), decreasing = T)
-=======
-sort(apply(viewed_movies, 2, sum), decreasing = TRUE)
->>>>>>> f14ad8033b0394a92d21cc673d35c54c60b5bb8b
+sort(apply(viewed_movies, 2, sum), decreasing = T)
 ```
 
 This approach has an intuitive appeal but is pretty unsophisticated (everyone gets the same recommendations, barring the filtering out of seen movies!) In other words, everyone's vote counts the same.
@@ -68,6 +64,19 @@ There are lots of different similarity measures. The one we'll use is called cos
 ```{r}
 # function calculating cosine similarity
 cosine_sim <- function(a, b){crossprod(a, b) / sqrt(crossprod(a) * crossprod(b))}
+```
+
+
+```{r}
+# input: row matrices 'ma' and 'mb' (with compatible dimensions)
+# output: cosine similarity matrix
+
+cos.sim=function(ma, mb){
+  mat=tcrossprod(ma, mb)
+  t1=sqrt(apply(ma, 1, crossprod))
+  t2=sqrt(apply(mb, 1, crossprod))
+  mat / outer(t1,t2)
+}
 ```
 
 Cosine similarity lies between 0 and 1 inclusive and increases with similarity. Here are a few test cases to get a feel for it:
@@ -102,6 +111,8 @@ cosine_sim(x1,x2)
 as.numeric(viewed_movies[1,]) # user 1's viewing history
 as.numeric(viewed_movies[2,]) # user 2's viewing history
 cosine_sim(viewed_movies[1,], viewed_movies[2,])
+
+cos.sim(viewed_movies, viewed_movies)
 ```
 
 Let's get similarities between user pairs. We'll do this with a loop below, because it's easier to see what's going on, but this will be inefficient and very slow for bigger datasets. As an exercise, see if you can do the same without loops.
@@ -118,6 +129,12 @@ user_similarities <- user_similarities + t(user_similarities)
 diag(user_similarities) <- 0
 row.names(user_similarities) <- row.names(viewed_movies)
 colnames(user_similarities) <- row.names(viewed_movies)
+```
+
+```{r}
+# Attempt to do the same without loops
+user_similarities2 <- cos.sim(viewed_movies, viewed_movies)
+
 ```
 
 
@@ -243,10 +260,12 @@ lapply(sorted_my_users, user_based_recommendations, user_similarities, viewed_mo
 
 A variant on the above is a *k-nearest-neighbours* approach that bases recommendations *only on k most similar users*. This is faster when there are many users. Try to implement this as an exercise.
 
+```{r}
+
+# TBDy
 
 
-
-
+```
 
 ## Item-based collaborative filtering
 
