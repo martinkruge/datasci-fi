@@ -37,7 +37,11 @@ ui <- fluidPage( theme = shinytheme("flatly"),
                            choiceNames = c("Yes","No"), choiceValues = c(TRUE,FALSE),
                            selected = c(T,F), inline=T ),
         
-        sliderInput("topicSelect", "Number of topics:", min = 2, max = 5, value = 3)
+        sliderInput(inputId = "topicSelect", "Number of topics:", min = 2, max = 5, value = 3),
+        
+        textInput(inputId = "userText", label = "New complaint:", value = "Enter complaint..."),
+        
+        actionButton(inputId = "saveText", label = "Save", icon = NULL)
       
       ),
       
@@ -50,9 +54,8 @@ ui <- fluidPage( theme = shinytheme("flatly"),
           ),
           
           tabPanel( "Topic modelling", 
-                    "Tab for topic modelling"
-                    
-                    #plotOutput("distPlot")
+                    #"Tab for topic modelling",
+                    plotOutput("topicProbPlot")
           )
       )
    )
@@ -92,10 +95,11 @@ server <- function(input, output) {
        filter(compensated %in% input$compSelect) %>%
        ggplot(aes(x=net_sentiment.new, fill=product, color=product)) + 
        #geom_histogram(binwidth=.5)
-       #geom_histogram(binwidth=1, alpha=.5, fill="darkgreen") +
-       #geom_histogram(binwidth=1, alpha=.3) +
-       geom_density(alpha=.3) +
-       xlim(c(-40,40)) + 
+       #geom_histogram(binwidth=1, alpha=.5) +
+       geom_histogram(position = "identity", binwidth = 1, alpha=.2) +
+       #geom_histogram(binwidth=1, alpha=.3) +  
+       #geom_density(alpha=.3) +
+       xlim(c(-20,20)) + #ylim(c(0,1000)) +
        xlab("Sentiment") + 
        ylab("Complaint count") 
        
@@ -104,10 +108,10 @@ server <- function(input, output) {
        filter(compensated %in% input$compSelect) %>%
        ggplot(aes(x=net_sentiment.new, fill=compensated, color=compensated)) + 
        #geom_histogram(binwidth=.5)
-       #geom_histogram(binwidth=1, alpha=.5, fill="darkgreen") +
+       geom_histogram(position = "identity", binwidth=1, alpha=.2) +
        #geom_histogram(binwidth=1, alpha=.3) +
-       geom_density(alpha=.3) +
-       xlim(c(-40,40)) + 
+       #geom_density(alpha=.3) +
+       xlim(c(-20,20)) + #ylim(c(0,3500)) +
        xlab("Sentiment") + 
        ylab("Complaint count") 
      
@@ -117,6 +121,27 @@ server <- function(input, output) {
      
      #grid.arrange(g1, g2, ncol=1)
      
+   })
+   
+   output$topicProbPlot <- renderPlot({
+       
+       N <- 15
+       complaints_lda <- NULL
+       
+       if (input$topicSelect == 2) { complaints_lda <- complaints_lda_2 } else 
+         if (input$topicSelect == 3) { complaints_lda <- complaints_lda_3 } else 
+           if (input$topicSelect == 4) { complaints_lda <- complaints_lda_4 } else 
+             if (input$topicSelect == 5) { complaints_lda <- complaints_lda_5 }
+       
+       top_terms <- topN.Beta(complaints_lda, N)
+       
+       top_terms %>%
+       mutate(term = reorder(term, beta)) %>%
+       ggplot(aes(term, beta, fill = factor(topic))) +
+       geom_col(show.legend = FALSE) +
+       facet_wrap(~ topic, scales = "free") +
+       coord_flip()
+       
    })
    
 }
