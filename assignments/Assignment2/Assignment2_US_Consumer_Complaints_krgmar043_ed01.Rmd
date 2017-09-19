@@ -425,6 +425,25 @@ save(file = "./CFPB/output/CFPB_sentiment.RData",
 ```
 
 
+```{r}
+
+sentiment_per_complaint %>%
+  ggplot(aes(x=net_sentiment.new)) + 
+  #geom_histogram(binwidth=.5)
+  geom_histogram(binwidth=1, alpha=.5, fill="darkgreen") +
+  xlim(c(-30,30)) + 
+  xlab("Sentiment") + 
+  ylab("Complaint count") +
+  theme(legend.position="none") 
+  
+  #ggplot(aes(x=net_sentiment.new, fill=product)) +
+  #geom_histogram(binwidth=.5, alpha=.5, position="dodge")
+  #geom_density(alpha=.3)
+
+
+```
+
+
 ### 5. Topic modelling
 
 

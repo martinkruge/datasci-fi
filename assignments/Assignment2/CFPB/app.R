@@ -1,17 +1,19 @@
 
 library(shiny)
 library(shinythemes)
-library(ggplot2)
 
 source("global.R")
 
-
+# Global variables
 PAGE_TITLE <- "US Consumer Financial Protection Bureau"
 CWD <- getwd()
 
+# Load data from .RData
 loadData(CWD)
 
-# Define UI for application 
+
+# Define UI for application
+#---------------------------------------------------------------------------------------------
 ui <- fluidPage( theme = shinytheme("flatly"),
             
             # Application title
@@ -59,6 +61,7 @@ ui <- fluidPage( theme = shinytheme("flatly"),
 
 
 # Define server logic 
+#---------------------------------------------------------------------------------------------
 server <- function(input, output) {
    
   
@@ -75,14 +78,44 @@ server <- function(input, output) {
    output$sentimentHistPlot <- renderPlot({
      
      # generate histogram based on input$prodSelect, input$compSelect from ui
-     sentiment.summary %>%
+#     sentiment.summary %>%
+#       filter(product %in% input$prodSelect) %>%
+#       filter(compensated %in% input$compSelect) %>%
+#       ggplot(aes(x = net_sentiment, y = count, fill = product)) + 
+#       geom_col() + # show.legend = FALSE
+#       ggtitle("Sentiment histogram by product") +
+#       labs(x = "Sentiment", y = "Frequency") 
+       #+facet_wrap(~product+compensated , ncol = 2, scales = "free") 
+ 
+     g1 <- sentiment_per_complaint %>%
        filter(product %in% input$prodSelect) %>%
        filter(compensated %in% input$compSelect) %>%
-       ggplot(aes(x = net_sentiment, y = count, fill = product)) + 
-       geom_col() + # show.legend = FALSE
-       ggtitle("Sentiment histogram by product") +
-       labs(x = "Sentiment", y = "Frequency") 
-       #+facet_wrap(~product+compensated , ncol = 2, scales = "free") 
+       ggplot(aes(x=net_sentiment.new, fill=product, color=product)) + 
+       #geom_histogram(binwidth=.5)
+       #geom_histogram(binwidth=1, alpha=.5, fill="darkgreen") +
+       #geom_histogram(binwidth=1, alpha=.3) +
+       geom_density(alpha=.3) +
+       xlim(c(-40,40)) + 
+       xlab("Sentiment") + 
+       ylab("Complaint count") 
+       
+     g2 <- sentiment_per_complaint %>%
+       filter(product %in% input$prodSelect) %>%
+       filter(compensated %in% input$compSelect) %>%
+       ggplot(aes(x=net_sentiment.new, fill=compensated, color=compensated)) + 
+       #geom_histogram(binwidth=.5)
+       #geom_histogram(binwidth=1, alpha=.5, fill="darkgreen") +
+       #geom_histogram(binwidth=1, alpha=.3) +
+       geom_density(alpha=.3) +
+       xlim(c(-40,40)) + 
+       xlab("Sentiment") + 
+       ylab("Complaint count") 
+     
+     
+     plots1 <- AlignPlots(g1, g2)
+     do.call(grid.arrange, plots1)
+     
+     #grid.arrange(g1, g2, ncol=1)
      
    })
    
