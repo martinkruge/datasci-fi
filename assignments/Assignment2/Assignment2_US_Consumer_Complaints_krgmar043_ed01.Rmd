@@ -1,0 +1,449 @@
+---
+title: "Assignment 2 <br> Sentiment Analysis - Topic Modelling - Shiny App"
+author: "Martin Kruger (KRGMAR043)"
+date: '`r format(Sys.Date())`'
+output:
+  html_document:
+    toc_depth: '2'
+  pdf_document:
+    fig_caption: yes
+    highlight: haddock
+    keep_tex: yes
+    latex_engine: xelatex
+    toc_depth: 2
+header-includes: \usepackage{float} \usepackage[section]{placeins} \usepackage{booktabs}
+  \usepackage{graphicx}
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(
+	fig.pos = "H",
+	include = FALSE,
+	tidy = TRUE
+)
+
+library(tidyverse)
+library(tidytext)
+library(stringr)
+library(lubridate)
+library(ggplot2)
+
+options(repr.plot.width=4, repr.plot.height=3) # set plot size in the notebook
+
+```
+
+***
+
+### 1. Introduction
+
+
+
+### 2. Data Description
+
+Each record/row captures a single complaint, on the following variables:
+
+ + *date_received*: the date the complaint was received  
+ + *product*: a broad categorisation of the type of financial product involved   
+       - 5 categories:  
+         1. bank account or service  
+         2. credit card  
+         3. credit reporting  
+         4. debt collection, mortgage    
+ + *consumer_complaint_narrative*: the submitted text explaining the nature of the complaint.  
+ + *consumer_compensated*: a binary indicator of whether the consumer was compensated (monetarily or non-monetarily) after the complaint.  
+
+
+```{r data_load, include=FALSE}
+
+rm(list=ls()) # Clean up environment
+
+
+# Load data from .RData
+data.file <- "./CFPB/data/complaints.RData"
+
+load(data.file)
+
+complaints$product <- as.factor(complaints$product)
+complaints$date_received <- as.Date(complaints$date_received, format = "%m/%d/%Y")
+
+complaints <- as.tibble(complaints)
+
+complaints <- complaints %>% rename(date = date_received)                     # Rename `date_received' 
+complaints <- complaints %>% rename(narrative = consumer_complaint_narrative) # Rename `consumer_complaint_narrative'
+complaints <- complaints %>% rename(compensated = consumer_compensated)       # Rename `consumer_compensated`
+
+products <- levels(complaints$product)
+
+```
+
+
+### 3. Data exploration
+
+```{r}
+
+complaints.by_date <-  complaints %>% 
+  group_by(date, product) %>% 
+  summarise(count = n())
+
+
+ggplot(data = complaints.by_date, aes(x = date, y = count, fill = product)) + 
+  geom_col(show.legend = FALSE) + 
+  ggtitle("Complaints per product per day") +
+  facet_wrap(~product, ncol = 2, scales = "free_y") 
+
+```
+
+```{r}
+
+complaints.by_compensated <-  complaints %>% 
+  group_by(date, compensated) %>% 
+  summarise(count = n()) %>%
+  left_join(complaints %>% group_by(date) %>% summarise(total = sum(n()))) %>%
+  mutate(ratio = count/total)
+
+
+ggplot(data = complaints.by_compensated, aes(x = date, y = count, fill = compensated)) + 
+  geom_col() + 
+  #geom_line(data=complaints.by_compensated, aes(x = date, y = ratio), colour = "black", type = 2) +  # Add rate
+  ggtitle("Complaints compensated vs uncompensated") +
+  facet_wrap(~compensated, ncol = 1, scales = "free_y") 
+
+```
+
+
+```{r}
+
+complaints.by_product_compensated <- complaints %>% 
+  group_by(date, product, compensated) %>% 
+  summarise(count = n()) %>%
+  ungroup()
+
+
+ggplot(data = complaints.by_product_compensated, aes(x = date, y = count, fill = compensated)) + 
+  geom_col() + # show.legend = FALSE
+  ggtitle("Complaints compensated vs uncompensated per product") +
+  labs(x = "Date", y = "Count") +
+  facet_wrap(~product , ncol = 2, scales = "free_y") 
+
+```
+
+
+
+### 4. Sentiment analysis
+
+```{r include=FALSE}
+
+# Make tidy data
+#----------------
+replace_reg <- "X{4}[/:]?|X{2}[/:]?|[^A-Za-z\\d\\s]"  # Regex for text to be removed, like XXXX, XX/
+
+# Create tidy data by 1st unnesting by sentences
+# Replacing regex above in each sentence
+# Unnesting by words, label each sentence
+tidy.complaints <- complaints %>%
+  unnest_tokens(text, narrative, token = "sentences", to_lower=F) %>%
+  mutate(text = str_replace_all(text, replace_reg, "")) %>%
+  group_by(id) %>%
+  mutate(sentence = row_number()) %>%
+  ungroup() %>%
+  unnest_tokens(word, text, token = "words") 
+
+
+# Add sentiment per word from 'bing' lexicon
+#--------------------------------------------
+tidy.complaints <- tidy.complaints %>%
+  #filter(!word %in% stop_words$word, str_detect(word, "[a-z]")) %>% # remove stop words - DON'T
+  left_join(get_sentiments("bing")) %>% # add sentiments (pos or neg)
+  select(word, sentiment, everything()) %>%
+  mutate(sentiment = ifelse(is.na(sentiment), "neutral", sentiment))
+
+```
+
+
+```{r}
+
+# Most used words per sentiment
+tidy.complaints %>%
+  filter(sentiment %in% c("positive","negative")) %>%
+  group_by(sentiment) %>%
+  count(word) %>%
+  arrange(desc(n)) %>%
+  filter(rank(desc(n)) <= 20) %>%
+  ungroup() %>%
+  ggplot(aes(reorder(word,n),n)) + 
+  ggtitle("Most used words per sentiment") +
+  geom_col(show.legend = FALSE) + 
+  coord_flip() + 
+  xlab("") + 
+  facet_wrap(~sentiment, ncol = 2, scales = "free") 
+
+```
+
+
+
+```{r}
+
+# Most used words per sentiment - per compensation
+tidy.complaints %>%
+  filter(sentiment %in% c("positive","negative")) %>%
+  group_by(sentiment, compensated) %>%
+  count(word) %>%
+  ungroup() %>%
+  arrange(desc(n)) %>%
+  group_by(sentiment, word) %>%
+  mutate(total = sum(n)) %>%
+  ungroup() %>%
+  arrange(desc(total),desc(n)) %>%
+  group_by(sentiment, compensated) %>%
+  mutate(rank = rank(desc(total),desc(n))) %>%
+  ungroup() %>%
+  filter(rank <= 20) %>%
+  ggplot(aes(reorder(word,n),n, fill = compensated)) +
+  ggtitle("Most used words per sentiment") +
+  geom_col() + 
+  coord_flip() + xlab("") + 
+  facet_wrap(~sentiment, ncol = 2, scales = "free") 
+
+```
+
+#### Aggregated sentiment per complaint
+
+```{r}
+
+# Sum word sentiments over complaint to get net-sentiment
+sentiment_per_complaint <-  tidy.complaints %>% 
+  filter(sentiment %in% c("positive","negative")) %>%
+  group_by(date, id, product, compensated) %>%
+  summarize(net_sentiment = (sum(sentiment == "positive") - sum(sentiment == "negative"))) %>%
+  ungroup()
+
+```
+\ 
+
+
+#### Dealing with negation 
+
+```{r}
+
+replace_reg <- "X{4}[/:]?|X{2}[/:]?|[^A-Za-z\\d\\s]"  # Regex for text to be removed, like XXXX, XX/
+
+# Create tidy data by replacing regex above
+# Unnesting by bigrams, seperate by space
+bigrams_separated <- complaints %>%
+  mutate(text = str_replace_all(narrative, replace_reg, "")) %>%
+  unnest_tokens(bigram, text, token = "ngrams", n = 2) %>%
+  separate(bigram, c("word1", "word2"), sep = " ") %>%
+  select(-narrative)
+
+# remove stop words - DON'T
+#bigrams_filtered <- bigrams_separated %>%
+#  filter(!word1 %in% stop_words$word) %>%
+#  filter(!word2 %in% stop_words$word)
+
+# add sentiment for each word
+#bigrams_filtered <- bigrams_filtered %>% 
+bigrams_separated <- bigrams_separated %>% 
+    # add sentiment for word 1
+    left_join(get_sentiments("bing"), by = c(word1 = "word")) %>%
+    rename(sentiment1 = sentiment) %>%
+    mutate(sentiment1 = ifelse(is.na(sentiment1), "neutral", sentiment1)) %>%
+    
+    # add sentiment for word 1
+    left_join(get_sentiments("bing"), by = c(word2 = "word")) %>%
+    rename(sentiment2 = sentiment) %>%
+    mutate(sentiment2 = ifelse(is.na(sentiment2), "neutral", sentiment2)) %>%
+    select(date,word1,word2,sentiment1,sentiment2,everything())
+
+```
+
+Now we need a list of words that we consider to be negation words. I'll use the following set, taken from TMR [Chapter 4](http://tidytextmining.com/ngrams.html), and show a few examples.
+
+```{r}
+
+negation_words <- c("not", "no", "never", "without")
+
+# show a few
+filter(bigrams_separated, word1 %in% negation_words) %>% 
+  filter(!word2 %in% stop_words$word) %>%
+    head(10) %>% select(date, word1, word2, sentiment1, sentiment2) # for display purposes
+```
+
+We now reverse the sentiment of `word2` whenever it is preceded by a negation word, and then add up the number of positive and negative words within a bigram and take the difference. That difference (a score from -2 to +2) is the sentiment of the bigram.
+
+We do this in two steps for illustrative purposes. First we reverse the sentiment of the second word in the bigram if the first one is a negation word.
+
+```{r}
+
+bigrams_separated.negated <- bigrams_separated %>%
+
+    # create a variable that is the opposite of sentiment2
+    mutate(opp_sentiment2 = recode(sentiment2, "positive" = "negative",
+                                 "negative" = "positive",
+                                 "neutral" = "neutral")) %>%
+    
+    # reverse sentiment2 if word1 is a negation word
+    mutate(sentiment2 = ifelse(word1 %in% negation_words, opp_sentiment2, sentiment2)) %>%
+    # remove the opposite sentiment variable, which we don't need any more
+    select(-opp_sentiment2)
+
+
+filter(bigrams_separated.negated, word1 %in% negation_words) %>%
+  filter(sentiment2 %in% c("positive","negative"))
+
+```
+
+Next, we calculate the sentiment of each bigram and join up the words in the bigram again. Only retain the one's where the net effect is not neutral.
+
+
+```{r}
+
+bigrams_separated.negated <- bigrams_separated.negated %>%
+  mutate(net_sentiment = (sentiment1 == "positive") + (sentiment2 == "positive") - 
+              (sentiment1 == "negative") - (sentiment2 == "negative")) %>%
+  unite(bigram, word1, word2, sep = " ", remove = FALSE) %>% 
+  filter(net_sentiment != 0) %>%
+  filter(!word2 %in% stop_words$word) %>% # remove cases where word2 is a stop word
+  filter(word1 %in% negation_words) %>% # only keep cases where negation took place
+  select(-word1, -word2, -sentiment1, -sentiment2)  # remove columns to prevent re-negation
+
+bigrams_separated.negated 
+
+```
+
+
+Most common positive and negative bigrams with negation. 
+
+```{r}
+
+bigrams_separated.negated %>%
+  filter(net_sentiment > 0) %>% # get positive bigrams
+  count(bigram, sort = TRUE) %>%
+  filter(rank(desc(n)) < 20) %>%
+  ggplot(aes(reorder(bigram,n),n)) + geom_col() + coord_flip() + xlab("")
+
+```
+
+
+```{r}
+
+bigrams_separated.negated %>%
+  filter(net_sentiment < 0) %>% # get negative bigrams
+  count(bigram, sort = TRUE) %>%
+  filter(rank(desc(n)) < 20) %>%
+  ggplot(aes(reorder(bigram,n),n)) + geom_col() + coord_flip() + xlab("")
+
+```
+\ 
+
+Calculate per complaint a net-effect of negation by summing the net-sentiment over bigrams per complaint.
+
+```{r}
+
+complaints.negated <- bigrams_separated.negated %>%
+  filter(net_sentiment != 0) %>% # get non-neutral bigrams
+  group_by(id) %>%
+  summarise(net_sentiment = sum(net_sentiment)) %>%
+  filter(net_sentiment != 0)
+
+```
+
+
+Add to `sentiment_per_complaint` and recalculate the net-sentiment.
+
+```{r}
+
+sentiment_per_complaint <- sentiment_per_complaint %>% 
+  left_join(complaints.negated %>% rename(neg.net_sentiment = net_sentiment), by = c("id")) %>%
+  mutate(net_sentiment.new = (net_sentiment + ifelse(is.na(neg.net_sentiment),0, 2*neg.net_sentiment))) # x2 = cancel old sentiment and add negated  (positive -> neutral -> negative / negative -> neutral -> positive)
+  
+```
+
+***
+
+\ 
+
+Negative sentiment complaints samples where negation had a positive effect. 
+
+```{r}
+
+complaints %>% 
+    left_join(sentiment_per_complaint) %>% 
+    select(narrative, net_sentiment, net_sentiment.new) %>%
+    filter(net_sentiment < 0) %>% # only negative samples
+    mutate(negation_effect = net_sentiment.new - net_sentiment ) %>%
+    filter(negation_effect > 0) %>%
+    arrange(desc(negation_effect)) %>%
+    head(10)
+
+```
+
+\ 
+
+Positive sentiment complaints samples where negation had a negative effect. 
+
+```{r}
+
+complaints %>% 
+    left_join(sentiment_per_complaint) %>% 
+    select(narrative, net_sentiment, net_sentiment.new) %>%
+    filter(net_sentiment > 0) %>%  # only positive samples
+    mutate(negation_effect = net_sentiment.new - net_sentiment ) %>%
+    filter(negation_effect < 0) %>%
+    arrange(negation_effect) %>%
+    head(10)
+ 
+```
+\ 
+
+#### Plot sentiment per product per day 
+
+```{r, fig.height=12, fig.width=10}
+
+sentiment.summary <- sentiment_per_complaint %>% 
+  select(-net_sentiment, -neg.net_sentiment) %>%
+  mutate(net_sentiment = net_sentiment.new) %>%
+  select(-net_sentiment.new) %>%
+  #rename(net_sentiment = net_sentiment.new) %>%
+  group_by(product, compensated,net_sentiment) %>%
+  summarise(count=n()) %>%
+  ungroup()
+
+
+sentiment.summary %>%
+  filter(product %in% c(products), compensated %in% c(T,F)) %>%
+  ggplot(aes(x = net_sentiment, y = count, fill = product)) + 
+  geom_col() + # show.legend = FALSE
+  ggtitle("Sentiment histogram by product") +
+  labs(x = "Sentiment", y = "Frequency") +
+  facet_wrap(~product+compensated , ncol = 2, scales = "free") 
+
+
+
+save(file = "./CFPB/output/CFPB_sentiment.RData", 
+     list=c("sentiment_per_complaint","sentiment.summary","products" ))
+```
+
+
+### 5. Topic modelling
+
+
+```{r include=FALSE}
+
+
+```
+
+
+### 6. Summary 
+
+
+
+### 7. References  
+
+[1] DATA.GOV - Bureau of Consumer Financial Protection 
+ - Consumer Complaint Database. [link](https://catalog.data.gov/dataset/consumer-complaint-database)
+
+
+[10] Phi coefficient. [link](https://en.wikipedia.org/wiki/Phi_coefficient)
+
+
