@@ -17,6 +17,7 @@ loadData <- function (cwd) {
    print(cwd)
    
    load(paste0(cwd,"/output/CFPB_sentiment.RData"), globalenv())
+   load(paste0(cwd,"/output/CFPB_tidy.RData"), globalenv())
    load(paste0(cwd,"/output/CFPB_LDA.RData"), globalenv())
    load(paste0(cwd,"/output/CFPB_LDA_k_beta.RData"), globalenv())
    load(paste0(cwd,"/output/CFPB_LDA_k_gamma.RData"), globalenv())

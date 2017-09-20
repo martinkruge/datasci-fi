@@ -158,6 +158,10 @@ tidy.complaints <- tidy.complaints %>%
   select(word, sentiment, everything()) %>%
   mutate(sentiment = ifelse(is.na(sentiment), "neutral", sentiment))
 
+
+save(file = "./CFPB/output/CFPB_tidy.RData", 
+     list=c("tidy.complaints" ))
+
 ```
 
 
@@ -257,7 +261,8 @@ bigrams_separated <- bigrams_separated %>%
 
 ```
 
-Now we need a list of words that we consider to be negation words. I'll use the following set, taken from TMR [Chapter 4](http://tidytextmining.com/ngrams.html), and show a few examples.
+
+Now we need a list of words that we consider to be negation words. Use the following set, taken from TMR [Chapter 4](http://tidytextmining.com/ngrams.html), and show a few examples.
 
 ```{r}
 
@@ -396,7 +401,7 @@ complaints %>%
 ```
 \ 
 
-#### Plot sentiment per product per day 
+#### Plot sentiment per product  
 
 ```{r, fig.height=12, fig.width=10}
 
@@ -415,6 +420,7 @@ sentiment.summary %>%
   ggplot(aes(x = net_sentiment, y = count, fill = product)) + 
   geom_col() + # show.legend = FALSE
   ggtitle("Sentiment histogram by product") +
+  xlim(c(-20,20)) +
   labs(x = "Sentiment", y = "Frequency") +
   facet_wrap(~product+compensated , ncol = 2, scales = "free") 
 
@@ -443,26 +449,273 @@ sentiment_per_complaint %>%
 
 ```
 
+*** 
+
+
 
 ### 5. Topic modelling
 
+Create *tidy* data by counting the number of ocurrences of each word in our vocabulary was used in each complaint, creating a "long" (and tidy) format of the document-term matrix. 
+
 
 ```{r include=FALSE}
+# Create tidy complaints data - count of each word per complaint id
+complaints_tdf <- tidy.complaints %>%
+  filter(!word %in% stop_words$word, str_detect(word, "[a-z]")) %>% # Remove stopwords and numbers
+  group_by(id, word) %>%
+  count() %>%  
+  ungroup()
+```
 
+
+Inspect for funny words... on the topN and lowN sides
+
+```{r}
+tidy.complaints %>% 
+  #filter(!word %in% stop_words$word, str_detect(word, "^[a-z]")) %>% # Remove stopwords and non-words
+  filter(!word %in% stop_words$word, str_detect(word, "[a-z]")) %>% # Remove stopwords and numbers
+  group_by(word) %>%
+  count() %>%  
+  ungroup() %>%
+  #arrange(desc(n))
+  arrange(n)
 
 ```
 
 
+Create a *ducument-term matrix*. The **topicmodels** package, which we use to implement the LDA topic model, requires the document-term matrix to be provided as a `DocumentTermMatrix` object. 
+
+
+```{r}  
+# Create a document-term matrix with cast
+complaints_dtm <- complaints_tdf %>% 
+  cast_dtm(id, word, n)
+```
+
+We can now estimate the parameters of the topic model using LDA. We use the `LDA()` function provided by the package **topicmodelling**. We need to specify the number of latent variables (topics) we wish to use.
+
+```{r}
+# Set seed for repeatable results
+set.seed(790904)
+
+# Perform LDA with 5 topics - logical choice because we have 5 products... but in shiny we will "test" other values
+complaints_lda_5 <- LDA(complaints_dtm, k = 5)  # 5 products
+complaints_lda_5
+
+# Create objects for other values of k for use in shiny app - LDA runs for a long time
+complaints_lda_4 <- LDA(complaints_dtm, k = 4)  # 
+complaints_lda_3 <- LDA(complaints_dtm, k = 3)  # 
+complaints_lda_2 <- LDA(complaints_dtm, k = 2)  # 
+
+save(file = "./CFPB/output/CFPB_LDA.RData", 
+     list=c("complaints_tdf","complaints_dtm","complaints_lda_5","complaints_lda_4","complaints_lda_3","complaints_lda_2" ))
+
+str(complaints_lda_5)
+str(complaints_lda_4)
+str(complaints_lda_3)
+str(complaints_lda_2)
+
+```
+
+* `beta`: these parameters control the *probability of a given topic k generating a particular word i.*
+* `gamma`: this gives the *topic "mixtures" for each document.*
+
+```{r}
+
+# tidy way of getting topic betas 
+
+complaint_topics_5 <- tidy(complaints_lda_5, matrix = "beta")
+complaint_topics_4 <- tidy(complaints_lda_4, matrix = "beta")
+complaint_topics_3 <- tidy(complaints_lda_3, matrix = "beta")
+complaint_topics_2 <- tidy(complaints_lda_2, matrix = "beta")
+
+# Top15 terms per topic - for each LDA k setting
+top_terms_5 <- complaint_topics_5 %>%  group_by(topic) %>%  top_n(15, beta) %>%  ungroup() %>%  arrange(topic, -beta)
+top_terms_4 <- complaint_topics_4 %>%  group_by(topic) %>%  top_n(15, beta) %>%  ungroup() %>%  arrange(topic, -beta)
+top_terms_3 <- complaint_topics_3 %>%  group_by(topic) %>%  top_n(15, beta) %>%  ungroup() %>%  arrange(topic, -beta)
+top_terms_2 <- complaint_topics_2 %>%  group_by(topic) %>%  top_n(15, beta) %>%  ungroup() %>%  arrange(topic, -beta)
+
+```
+
+Top 15 terms per topic for each of the k settings that LDA was done for.
+
+```{r}
+library(ggplot2)
+
+top_terms_5 %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()
+```
+
+```{r}
+
+top_terms_4 %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()
+
+```
+
+```{r}
+
+top_terms_3 %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()
+
+```
+
+```{r}
+
+top_terms_2 %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()
+
+```
+
+
+Long way of getting topic betas - this time create a tidy dataset for easy comparison later on...
+
+```{r}
+
+# The long way to get topic beta values...
+
+term5 <- as.character(complaints_lda_5@terms)
+topic1 <- complaints_lda_5@beta[1,]
+topic2 <- complaints_lda_5@beta[2,]
+topic3 <- complaints_lda_5@beta[3,]
+topic4 <- complaints_lda_5@beta[4,]
+topic5 <- complaints_lda_5@beta[5,]
+k <- rep(5, length(term5))
+
+complaint_topics5 <- tibble(k=k, term = term5, topic1 = topic1, topic2 = topic2, topic3 = topic3, topic4 = topic4, topic5 = topic5)
+
+
+term4 <- as.character(complaints_lda_4@terms)
+topic1 <- complaints_lda_4@beta[1,]
+topic2 <- complaints_lda_4@beta[2,]
+topic3 <- complaints_lda_4@beta[3,]
+topic4 <- complaints_lda_4@beta[4,]
+k <- rep(4, length(term4))
+
+complaint_topics4 <- tibble(k=k, term = term4, topic1 = topic1, topic2 = topic2, topic3 = topic3, topic4 = topic4)
+
+
+term3 <- as.character(complaints_lda_3@terms)
+topic1 <- complaints_lda_3@beta[1,]
+topic2 <- complaints_lda_3@beta[2,]
+topic3 <- complaints_lda_3@beta[3,]
+k <- rep(3, length(term3))
+
+complaint_topics3 <- tibble(k=k, term = term3, topic1 = topic1, topic2 = topic2, topic3 = topic3)
+
+
+term2 <- as.character(complaints_lda_2@terms)
+topic1 <- complaints_lda_2@beta[1,]
+topic2 <- complaints_lda_2@beta[2,]
+k <- rep(2, length(term2))
+
+complaint_topics2 <- tibble(k=k, term = term2, topic1 = topic1, topic2 = topic2)
+
+
+# tidy set of topic beta values for each k that LDA was done for
+complaint_topics5 <- complaint_topics5 %>% 
+  gather(topic1, topic2, topic3, topic4, topic5, key = "topic", value = "beta") %>%
+  mutate(beta = exp(beta)) # pr(topic k generates word i) = exp(beta_ik)
+
+complaint_topics4 <- complaint_topics4 %>% 
+  gather(topic1, topic2, topic3, topic4, key = "topic", value = "beta") %>%
+  mutate(beta = exp(beta)) # pr(topic k generates word i) = exp(beta_ik)
+
+complaint_topics3 <- complaint_topics3 %>% 
+  gather(topic1, topic2, topic3, key = "topic", value = "beta") %>%
+  mutate(beta = exp(beta)) # pr(topic k generates word i) = exp(beta_ik)
+
+complaint_topics2 <- complaint_topics2 %>% 
+  gather(topic1, topic2, key = "topic", value = "beta") %>%
+  mutate(beta = exp(beta)) # pr(topic k generates word i) = exp(beta_ik)
+
+
+# One big tidy table with all k setting topic betas
+complaint_topics <- bind_rows(complaint_topics5, complaint_topics4, complaint_topics3, complaint_topics2)
+
+
+save(file = "./CFPB/output/CFPB_LDA_k_beta.RData", 
+     list=c("complaint_topics" ))
+
+```
+
+
+
+
+Per complaint classification. 
+
+```{r}
+
+# Gamma matrix per LDA - for 5,4,3,2 topic cases 
+complaint_gamma_5 <- tidy(complaints_lda_5, matrix = "gamma")
+complaint_gamma_4 <- tidy(complaints_lda_4, matrix = "gamma")
+complaint_gamma_3 <- tidy(complaints_lda_3, matrix = "gamma")
+complaint_gamma_2 <- tidy(complaints_lda_2, matrix = "gamma")
+
+complaint_gamma_5$k = 5
+complaint_gamma_4$k = 4
+complaint_gamma_3$k = 3
+complaint_gamma_2$k = 2
+
+complaint_gamma <- bind_rows(complaint_gamma_5, complaint_gamma_4, complaint_gamma_3, complaint_gamma_2)
+
+save(file = "./CFPB/output/CFPB_LDA_k_gamma.RData", 
+     list=c("complaint_gamma" ))
+
+```
+
+
+
+```{r}
+beta_spread <- complaint_topics %>%
+  spread(topic, beta) %>%
+  filter(topic1 > .001 | topic2 > .001 | topic3 > .001 | topic4 > .001 | topic5 > .001) %>%
+  mutate(log_ratio = log2(topic2 / topic1))
+
+```
+
+
+
+
+```
+# reorder titles in order of topic 1, topic 2, etc before plotting
+chapters_gamma %>%
+  mutate(title = reorder(title, gamma * topic)) %>%
+  ggplot(aes(factor(topic), gamma)) +
+  geom_boxplot() +
+  facet_wrap(~ title)
+
+```
+
+\ 
+
+
 ### 6. Summary 
 
+The shiny app demo can be used to demonstrate how sentiment differs between products and whether the user was compensated.
 
 
 ### 7. References  
 
 [1] DATA.GOV - Bureau of Consumer Financial Protection 
- - Consumer Complaint Database. [link](https://catalog.data.gov/dataset/consumer-complaint-database)
-
-
-[10] Phi coefficient. [link](https://en.wikipedia.org/wiki/Phi_coefficient)
+ - Consumer Complaint Database. [CFPB](https://catalog.data.gov/dataset/consumer-complaint-database)
+[2] TMR [TMR](http://tidytextmining.com/) 
+[3] R4DS [R4DS](http://r4ds.had.co.nz/) 
 
 

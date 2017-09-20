@@ -30,17 +30,22 @@ ui <- fluidPage( theme = shinytheme("flatly"),
    # Sidebar with a slider input for number of bins 
    sidebarLayout(
       sidebarPanel( width = 2,
-         
+      #wellPanel( #width = 2,
+                                  
         checkboxGroupInput(inputId = "prodSelect", label = "Select products:", choices = products, selected = products ),
         
+        br(),
         checkboxGroupInput(inputId = "compSelect", label = "Select compensated:", 
                            choiceNames = c("Yes","No"), choiceValues = c(TRUE,FALSE),
                            selected = c(T,F), inline=T ),
         
-        sliderInput(inputId = "topicSelect", "Number of topics:", min = 2, max = 5, value = 3),
-        
-        textInput(inputId = "userText", label = "New complaint:", value = "Enter complaint..."),
-        
+        br(),
+        sliderInput(inputId = "topicSelect", label = "Number of topics:", min = 2, max = 5, value = 3),
+        checkboxInput(inputId = "ldaSelect", label = "Re-run LDA (!runs long)", value = FALSE),
+        br(),
+
+        #textInput(inputId = "userText", label = "New complaint:", value = "Enter complaint..."),
+        textAreaInput(inputId = "userTextIn", label = "New complaint:", value = "Complaint text...", width = "250px", height = "200px"),
         actionButton(inputId = "saveText", label = "Save", icon = NULL)
       
       ),
@@ -50,12 +55,22 @@ ui <- fluidPage( theme = shinytheme("flatly"),
         tabsetPanel(
           tabPanel( "Sentiment analysis", 
                     #CWD
+                    br(),
                     plotOutput("sentimentHistPlot")
           ),
           
           tabPanel( "Topic modelling", 
                     #"Tab for topic modelling",
+                    br(),
                     plotOutput("topicProbPlot")
+          ),
+          
+          tabPanel( "User text", 
+                    #"Tab for user complaint input",
+                    br(),
+                    verbatimTextOutput(outputId = "userTextOut"),
+                    textOutput(outputId = "userTextOut2") #, container = if (inline) span else div, inline = FALSE)
+                    #textOutput(outputId, container, inline)
           )
       )
    )
@@ -96,7 +111,7 @@ server <- function(input, output) {
        ggplot(aes(x=net_sentiment.new, fill=product, color=product)) + 
        #geom_histogram(binwidth=.5)
        #geom_histogram(binwidth=1, alpha=.5) +
-       geom_histogram(position = "identity", binwidth = 1, alpha=.2) +
+       geom_histogram(position = "identity", binwidth = 1, alpha=.3) +
        #geom_histogram(binwidth=1, alpha=.3) +  
        #geom_density(alpha=.3) +
        xlim(c(-20,20)) + #ylim(c(0,1000)) +
@@ -108,7 +123,7 @@ server <- function(input, output) {
        filter(compensated %in% input$compSelect) %>%
        ggplot(aes(x=net_sentiment.new, fill=compensated, color=compensated)) + 
        #geom_histogram(binwidth=.5)
-       geom_histogram(position = "identity", binwidth=1, alpha=.2) +
+       geom_histogram(position = "identity", binwidth=1, alpha=.3) +
        #geom_histogram(binwidth=1, alpha=.3) +
        #geom_density(alpha=.3) +
        xlim(c(-20,20)) + #ylim(c(0,3500)) +
@@ -128,21 +143,44 @@ server <- function(input, output) {
        N <- 15
        complaints_lda <- NULL
        
-       if (input$topicSelect == 2) { complaints_lda <- complaints_lda_2 } else 
-         if (input$topicSelect == 3) { complaints_lda <- complaints_lda_3 } else 
-           if (input$topicSelect == 4) { complaints_lda <- complaints_lda_4 } else 
-             if (input$topicSelect == 5) { complaints_lda <- complaints_lda_5 }
+       if (input$ldaSelect) {
+        
+         tidy.complaints <- tidy.complaints %>%
+           filter(product %in% input$prodSelect) %>%
+           filter(compensated %in% input$compSelect)
+         
+         complaints_lda <- topic.LDA(k=input$topicSelect, tidy.complaints=tidy.complaints)
+           
+       }
+       else
+       {
+         if (input$topicSelect == 2) { complaints_lda <- complaints_lda_2 } else 
+           if (input$topicSelect == 3) { complaints_lda <- complaints_lda_3 } else 
+             if (input$topicSelect == 4) { complaints_lda <- complaints_lda_4 } else 
+               if (input$topicSelect == 5) { complaints_lda <- complaints_lda_5 }
+       }
        
        top_terms <- topN.Beta(complaints_lda, N)
        
        top_terms %>%
        mutate(term = reorder(term, beta)) %>%
-       ggplot(aes(term, beta, fill = factor(topic))) +
-       geom_col(show.legend = FALSE) +
+       ggplot(aes(term, beta, fill = factor(topic), color = factor(topic))) +
+       geom_col(show.legend = FALSE, alpha=.3) +
        facet_wrap(~ topic, scales = "free") +
        coord_flip()
-       
    })
+   
+   output$userTextOut <- renderText({ input$userTextIn })
+   
+   user_complaint <- eventReactive(input$saveText, {
+     
+     complainText = input$userTextIn
+     productSelected = input$prodSelect
+     compSelected = input$compSelect
+   
+   })
+   
+   output$userTextOut2 = renderText(user_complaint())   
    
 }
 
