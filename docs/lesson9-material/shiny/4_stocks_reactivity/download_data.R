@@ -21,3 +21,6 @@ stock_data <- stocks %>%
   setNames(stocks)
 
 save(stock_data, file = "stock_data.RData")
+
+
+

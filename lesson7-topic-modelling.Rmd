@@ -7,9 +7,10 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
 ```
 
-Topic modelling is a type of bag-of-words model that aims to summarize a document by describing it in terms of a small number of "topics". The resulting descriptions can then be used for several purposes, for example, to judge similarity between documents and to cluster together similar documents, or for document classification. This notebook covers topic modelling and in particular one method used to do topic modelling, *latent dirichlet allocation*.
+Topic modelling is a type of bag-of-words model that aims to summarize a document by describing it in terms of a small number of "topics". The resulting descriptions can then be used for several purposes, for example, to judge similarity between documents and to cluster together similar documents, or for document classification. This notebook covers topic modelling and in particular one method used to do topic modelling, *Latent Dirichlet Allocation*.
 
 As we've seen, in the bag-of-words model a document is represented by:
 
@@ -22,13 +23,18 @@ The "wideness" of the document-term matrix poses a challenge to efficient furthe
 
 This is what topic modelling does. In a nutshell, it summarizes documents by describing them in terms of a smaller number of topics. Over and above improving the efficency with which further analyses can be done, the resulting summaries contain useful information about what a document is "about".
 
+
 In this notebook we will:
 
 1. Look at how a topic model attempts to "summarize" the document-term matrix, using a spreadsheet example. Along the way we'll introduce a number of methods for doing topic modelling, and also some fundamental modelling "building blocks" like maximum likelihood.
+
 2. Describe Latent Dirichlet allocation (LDA), a popular method for doing topic modeling that avoids some of the pitfalls of other methods.
-3. Show how you can do topic modelling with LDA using the **topicmodelling** package, with further analysis done in **tidytext**. We'll create a topic model for a collection of movie reviews.
+
+3. Show how you can do topic modelling with LDA using the **topicmodels** package, with further analysis done in **tidytext**. We'll create a topic model for a collection of movie reviews.
+
 
 The code in this lesson borrows heavily from [Chapter 6](http://tidytextmining.com/topicmodeling.html) of TMR, and also contains some of the material on converting between tidy and non-tidy text formats in [Chapter 5](http://tidytextmining.com/dtm.html).
+
 
 ## Summary of topic models
 
@@ -57,6 +63,7 @@ Over all $N$ documents, the likelihood we want to maximize is given by
 $$\prod_{j=1}^N \prod_{i=1}^n p(w_i) = \prod_{i=1}^n p(w_i)^{\sum_{j=1}^N f_j(w_i)}$$ 
 
 where $f_j(w_i)$ is the observed number of times that word $i$ appears in document $j$.
+\ 
 
 ### Mixture of unigrams
 
@@ -69,23 +76,25 @@ In the mixture of unigrams model a document can only belong to one topic. Later 
 1. When we generate a document, we first choose a topic from a set of $K$ topics (we have to set $K$ beforehand). The probability of choosing topic $k$ is $p(z_k)$.
 2. We then generate the words in that document from the appropriate distribution. Previously we had a single word distribution with terms like $p(w_i)$. Now we have one distribution for each topic, and the terms are $p(w_i|z=k)$. We read this as "the probability that topic $k$ generates word $i$.  
 
+
 #### Some more details
 
 We now basically have to estimate the parameters of *several* multinomial distributions, rather than just one, and we *also* have to estimate the probabilities of generating the topics $p(z=1),\dots,p(z=K)$. With $K$ topics, we have $K+Kn$ parameters to estimate.  
 
 Say we have three words in our vocabulary $w_1$, $w_2$, $w_3$. The probability that, in a document of 6 words, word 1 appears four times, word 2 twice, and word 3 not all is, now depends on what "topic" the document belongs to:
 
-* if the document is from topic 1, the probability is $p(w_1|z_1)^4p(w_2|z_1)^2p(w_3|z_1)^0$. The probability that the document is from topic 1 is given by $p(z_1)$. This is *another parameter* that we will have to estimate!
-* if the document is from topic 2, the probability is $p(w_1|z_2)^4p(w_2|z_2)^2p(w_3|z_2)^0$. The probability that the document is from topic 1 is given by $p(z_2)$. 
-* if the document is from topic 3, the probability is $p(w_1|z_3)^4p(w_2|z_3)^2p(w_3|z_3)^0$. The probability that the document is from topic 1 is given by $p(z_3)$. 
++ if the document is from topic 1, the probability is $p(w_1|z_1)^4p(w_2|z_1)^2p(w_3|z_1)^0$. The probability that the document is from topic 1 is given by $p(z_1)$. This is *another parameter* that we will have to estimate!
++ if the document is from topic 2, the probability is $p(w_1|z_2)^4p(w_2|z_2)^2p(w_3|z_2)^0$. The probability that the document is from topic 1 is given by $p(z_2)$. 
++  if the document is from topic 3, the probability is $p(w_1|z_3)^4p(w_2|z_3)^2p(w_3|z_3)^0$. The probability that the document is from topic 1 is given by $p(z_3)$. 
 
 The joint probability is given by:
-* multiplying together the probability that a document is from a topic (e.g. $p(z_1)$) with the probability of generating the observed frequencies *given that topic* (e.g. $p(w_1|z_1)^4p(w_2|z_1)^2p(w_3|z_1)^0$). This will give three *joint probabilities*, each one gives the probability of being a particular topic *and* getting the observed word frequencies.
-* adding up the three joint probabilities gives the marginal probability of getting the observed frequencies 
++ multiplying together the probability that a document is from a topic (e.g. $p(z_1)$) with the probability of generating the observed frequencies *given that topic* (e.g. $p(w_1|z_1)^4p(w_2|z_1)^2p(w_3|z_1)^0$). This will give three *joint probabilities*, each one gives the probability of being a particular topic *and* getting the observed word frequencies.
++ adding up the three joint probabilities gives the marginal probability of getting the observed frequencies 
 
 $$p(\mathbf{w}) = \sum_{k=1}^K p(z_k)\prod_{i=1}^n p(w_i|z_k)$$
 
 We can again estimate parameter values by maximizing the likelihood. All that needs to be done is to take a product of the joint probabilities worked out above over documents - that is the likelihood function. 
+
 
 ### Latent semantic analysis (LSA)
 
@@ -97,6 +106,7 @@ This is a different, non-probabilistic approach that uses matrix factorization. 
 
 See the recommender system notebook on matrix factorization. We can use singular value decomposition to do the matrix factorization.
 
+
 ### Probabilistic latent semantic analysis (pLSA)
 
 #### Basic idea
@@ -104,11 +114,13 @@ See the recommender system notebook on matrix factorization. We can use singular
 The core ideas in pLSA are:
 
 1. **Each document is a mixture of topics**. For example, a document could consist of 90% topic 1 and 10% topic 2, while another document could have different proportions of the two topics.
+
 2. **Each topic is a mixture of words**. This mixture, expressed as a probability distribution defined over the words in a vocabulary, can be thought of as the propensity of the topic to use certain words over others. 
 
 The second of these is as for the mixture of unigrams model, but the first is new, and important - because most documents are not about just one topic.
 
 A handy way of thinking of pLSA is to think of how it can be used to generate a document, assuming you know the distribution of topics for the document, and probabilities of generating different words conditional on each topic (of course, in reality finding these distributions is the problem that pLSA is trying to solve!).
+
 
 To generate a document we would:
 1. Start with a number of words you want to generate (say 100)
@@ -132,11 +144,12 @@ $$p(w_{ij}) = \sum_{k=1}^K p(w_i,d_j|z_k)p(z_k|d_j)p(d_j)$$
 
 In order to formulate a likelihood function that can be maximized, pLSA needs to respect some probability rules. Specifically, to work out the joint probability that a document $j$ produces a word $i$ the following "ingredients" are needed.
 
-* The probability of word i given topic k, for all i and k. This is the same as before, and gives $nK$ parameters to estimate.
-* The "mixture" of topics in each document -- the probability that document $j$ generates topic $k$. This is new, and gives $NK$ parameters to estimate.
-* The probability that the corpus generates document $j$. This is also new, and gives $N$ parameters to estimate.
++ The probability of word i given topic k, for all i and k. This is the same as before, and gives $nK$ parameters to estimate.
++ The "mixture" of topics in each document -- the probability that document $j$ generates topic $k$. This is new, and gives $NK$ parameters to estimate.
++ The probability that the corpus generates document $j$. This is also new, and gives $N$ parameters to estimate.
 
 The last of these in particular is tricky conceptually, but it is needed to make sure the probabilities actually come out as probabilities -- that, for example, they sum to one. 
+
 
 ### Latent Dirichlet allocation
 
@@ -147,7 +160,7 @@ Latent Dirichlet allocation uses the same basic setup as pLSA:
 * *Each document is a mixture of topics*. 
 * *Each topic is a mixture of words*. 
 
-In pLSA there topic distribution (the proportion of topics making up a document) is different for each document. That's why there were $nK$ parameters to estimate. LDA says that the topic distributions are drawn from *another* distribution (!), specifically a Dirichlet distribution with parameters $[a_1,\dots,a_K]$. The Dirichlet distribution is a useful distribution for modelling things like proportions and probabilities that sum to one. This means that we only estimate the $K$ parameters of the Dirichlet, substantially less than the $nK$ parameters estimated by pLSA. This also does away with the need to specifically estimate the probability that the corpus generates document $j$. These are the two main benefits of LDA over pLSA.
+In pLSA the topic distribution (the proportion of topics making up a document) is different for each document. That's why there were $nK$ parameters to estimate. LDA says that the topic distributions are drawn from *another* distribution (!), specifically a Dirichlet distribution with parameters $[a_1,\dots,a_K]$. The Dirichlet distribution is a useful distribution for modelling things like proportions and probabilities that sum to one. This means that we only estimate the $K$ parameters of the Dirichlet, substantially less than the $nK$ parameters estimated by pLSA. This also does away with the need to specifically estimate the probability that the corpus generates document $j$. These are the two main benefits of LDA over pLSA.
 
 To generate a document we would:
 1. Start with a number of words you want to generate (say 100)
@@ -206,15 +219,17 @@ reviews_tdf <- tidy_reviews %>%
   ungroup() 
 ```
 
+
 Previously we have created our own "wide" versions of the document-term matrix using the `spread()` function. We did this, for example, when building a bag-of-words model in the Lesson 6 notebook. This was fine when building features for a classification tree (using **rpart**), but some R packages require a particular implementation of document-term matrix. One common implementation is the `DocumentTermMatrix` class provided by the **tm** package. 
 
-The **topicmodelling** package, which we use to implement the LDA topic model, requires the document-term matrix to be provided as a `DocumentTermMatrix` object. Fortunately, **tidytext** provides a number of functions for turning "ordinary" document-term matrices into `DocumentTermMatrix` (or other kinds of) objects, and also for going the other way (tidying document-term matrices). This is described in more detail [here](http://tidytextmining.com/dtm.html#cast-dtm). Essentially, we create the `DocumentTermMatrix` object using `cast_dtm()` as shown below.
+The **topicmodels** package, which we use to implement the LDA topic model, requires the document-term matrix to be provided as a `DocumentTermMatrix` object. Fortunately, **tidytext** provides a number of functions for turning "ordinary" document-term matrices into `DocumentTermMatrix` (or other kinds of) objects, and also for going the other way (tidying document-term matrices). This is described in more detail [here](http://tidytextmining.com/dtm.html#cast-dtm). Essentially, we create the `DocumentTermMatrix` object using `cast_dtm()` as shown below.
 
 
 ```{r}
 dtm_reviews <- reviews_tdf %>% 
   cast_dtm(reviewId, word, n)
 ```
+
 
 We can now estimate the parameters of the topic model using LDA. We use the `LDA()` function provided by the package **topicmodelling**. We need to specify the number of latent variables (topics) we wish to use. 
 
@@ -225,15 +240,17 @@ Notice that the object that is returned by `LDA()` below has a specific class, t
 set.seed(1234)
 reviews_lda <- LDA(dtm_reviews, k = 2)
 reviews_lda
+
 str(reviews_lda)
 ```
 
 The main things we are interested in are:
 
-* `beta`: these parameters control the probability of a given topic k generating a particular word i.
-* `gamma`: this gives the topic "mixtures" for each document.
+* `beta`: these parameters control the *probability of a given topic k generating a particular word i.*
+* `gamma`: this gives the *topic "mixtures" for each document.*
 
 We'll first look at the beta parameters and examine which words are most associated with each topic. This will be a good way of checking, in our case, whether the words align themselves into two topics we are expecting (i.e. one to do with *Taxi Driver*, the other *Waterworld*). More generally, you would do this to assess what the topics are about. 
+
 
 ### Word-topic probabilities
 
@@ -247,6 +264,7 @@ topic2 <- reviews_lda@beta[2,]
 reviews_topics <- tibble(term = term, topic1 = topic1, topic2 = topic2)
 ```
 
+
 The data frame above is not yet in "tidy" format, because the beta parameters are spread across two columns. We use the `gather()` function to get the data into a tidy format. At the same time, we transform the beta parameters into probabilities by exponentiating each beta
 
 
@@ -254,8 +272,10 @@ The data frame above is not yet in "tidy" format, because the beta parameters ar
 reviews_topics <- reviews_topics %>% 
   gather(topic1, topic2, key = "topic", value = "beta") %>%
   mutate(beta = exp(beta)) # pr(topic k generates word i) = exp(beta_ik)
+
 head(reviews_topics)
 ```
+
 
 The **tidytext** package provides a function `tidy()` that tidies a number of different object types, including "LDA_VEM" objects. So you can skip the previous step and use a direct call to `tidy()` the `reviews_lda` object we created earlier. You can use the same approach with `matrix = "gamma"` to extract those parameters.
 
@@ -286,9 +306,10 @@ top_terms %>%
   coord_flip()
 ```
 
-This visualization shows use the most frequent words used by each topic, and this gives us a way of understanding what the topics are about. The words used by Topic 1 are mostly to do with *Waterworld* (the movie title, actors' names, some plot elements like "mariner", "land", etc). The words used by Topic 2 are mostly about *Taxi Driver*. So, the topic model is clearly picking up that the reviews are largely about two "topics", and that these topics relate to the movies being reviewed. Also note that some words (like "movie" and "film") are common to both topics. This is a benefit of LDA: words can be associated with more than one topic.
+This visualization shows us the most frequent words used by each topic, and this gives us a way of understanding what the topics are about. The words used by Topic 1 are mostly to do with *Waterworld* (the movie title, actors' names, some plot elements like "mariner", "land", etc). The words used by Topic 2 are mostly about *Taxi Driver*. So, the topic model is clearly picking up that the reviews are largely about two "topics", and that these topics relate to the movies being reviewed. Also note that some words (like "movie" and "film") are common to both topics. This is a benefit of LDA: words can be associated with more than one topic.
 
-A different way of drawing out the differences between topics is to look at which words have the greatest *difference* in beta values between Topic 1 and Topic 2. This could be done in several ways but a good default is to take the advice in TMR anduse the log (base 2) ratio of the two betas: $log2(\beta_2/\beta_1)$. Any log ratio is symmetrical: the log ratio for $\beta_2/\beta_1$ is -1 times the log ratio for $\beta_1/\beta_2$. A base of 2 in the log ratio makes things a bit easier to interpret. The log (base 2) ratio increases by 1 for every doubling of $\beta_2$ (relative to $\beta_1$) leads to an increase in the log ratio of 1. 
+
+A different way of *drawing out the differences between topics* is to look at which words have the greatest *difference* in beta values between Topic 1 and Topic 2. This could be done in several ways but a good default is to take the advice in TMR and use the log (base 2) ratio of the two betas: $log2(\beta_2/\beta_1)$. Any log ratio is symmetrical: the log ratio for $\beta_2/\beta_1$ is -1 times the log ratio for $\beta_1/\beta_2$. A base of 2 in the log ratio makes things a bit easier to interpret. The log (base 2) ratio increases by 1 for every doubling of $\beta_2$ (relative to $\beta_1$) leads to an increase in the log ratio of 1. 
 
 We calculate the log ratios below and plot the words with the biggest positive and negative log ratios. We first filter out common words, such as those that have a beta greater than 1/1000 in at least one topic.
 
@@ -299,6 +320,7 @@ beta_spread <- reviews_topics %>%
   spread(topic, beta) %>%
   filter(topic1 > .001 | topic2 > .001) %>%
   mutate(log_ratio = log2(topic2 / topic1))
+
 ```
 
 
@@ -332,7 +354,7 @@ reviews_gamma <- reviews %>%
 We know that Topic 1 is clearly about *Waterworld* and Topic 2 is about *Taxi Driver*. We can therefore ask: 
 
 1. How many of the reviews for *Taxi Driver* did the LDA estimate to be *mostly* about Topic 1 (*Waterworld*)?
-2. How many of the reviews for *Waterwold* did the LDA estimate to be *mostly* about Topic 2 (*Taxi Driver*)? 
+2. How many of the reviews for *Waterworld* did the LDA estimate to be *mostly* about Topic 2 (*Taxi Driver*)? 
 
 We answer this question below (*Taxi Driver* has `imdbID = 0075314`). Six of the 160 *Taxi Driver* reviews were estimated to mostly be about Topic 1, while eight of the 160 *Waterworld* reviews were mostly about Topic 2, according to LDA. 
 

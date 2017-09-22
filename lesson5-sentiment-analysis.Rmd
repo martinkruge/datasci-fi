@@ -210,7 +210,7 @@ sentiments_per_tweet %>%
   geom_line() + geom_smooth()
 ```
 
- ## Dealing with negation
+## Dealing with negation
  
 One problem we haven't considered yet is what to do with terms like "not good", where a positive word is negated by the use of "not" before it. We need to reverse the sentiment of words that are preceded by negation words like not, never, *etc*.
  
@@ -242,6 +242,8 @@ bigrams_separated <- bigrams_separated %>%
     mutate(sentiment2 = ifelse(word2 == "trump", NA, sentiment2)) %>%
     mutate(sentiment2 = ifelse(is.na(sentiment2), "neutral", sentiment2)) %>%
     select(month,word1,word2,sentiment1,sentiment2,everything())
+
+bigrams_separated
 ```
 
 Now we need a list of words that we consider to be negation words. I'll use the following set, taken from TMR [Chapter 4](http://tidytextmining.com/ngrams.html), and show a few examples.
@@ -273,16 +275,23 @@ bigrams_separated <- bigrams_separated %>%
     
     # remove the opposite sentiment variable, which we don't need any more
     select(-opp_sentiment2)
+
+filter(bigrams_separated, word1 %in% negation_words) %>%
+  filter(sentiment2 %in% c("positive","negative"))
 ```
 
 Next, we calculate the sentiment of each bigram and join up the words in the bigram again.
 
 
 ```{r}
+
 bigrams_separated <- bigrams_separated %>%
   mutate(net_sentiment = (sentiment1 == "positive") + (sentiment2 == "positive") - 
               (sentiment1 == "negative") - (sentiment2 == "negative")) %>%
   unite(bigram, word1, word2, sep = " ", remove = FALSE)
+
+bigrams_separated
+
 ```
 
 Below we show Trump's most common positive and negative bigrams. 
@@ -317,10 +326,15 @@ bigrams_separated %>%
     ggplot(aes(reorder(bigram,n),n)) + geom_col() + coord_flip() + xlab("")
 ```
 
+
 ## Exercises
 
 1. Adverbs like "very", "extremely", "totally", "really", "quite", "marginally", *etc* increase or decrease the magnitude of the sentiment that follows them. Think of a few qualifiers and build these into the analyses above. What are they most positive and negative tweets once these qualifiers have been added? Does it affect the assessment of whether the sentiment of Trump's tweets has changed over time?
+
 2. Is there a relationship between the sentiment of a tweet and its popularity? Are negative tweets less popular than positive ones?
+
 3. Is there a "day of the week" effect on the number and sentiment of tweets? Are weekends any different to weekdays?
+
 4. Use the more nuanced *nrc* lexicon, which categorises words as "anger", "fear", *etc* to re-analyse Trump's tweets. Can you pick up anything interesting?
+
 5. Note the appearance of the bigrams "miss usa" and "miss universe" in the plot of most common negative bigrams in the notebook. This is a clear misinterpretation of "miss". How might you remove the ambiguity in these kinds of bigrams in a general way (either just think of a way or, better, implement it!)

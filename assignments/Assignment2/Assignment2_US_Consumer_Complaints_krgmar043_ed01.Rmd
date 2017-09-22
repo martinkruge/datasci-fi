@@ -5,17 +5,10 @@ date: '`r format(Sys.Date())`'
 output:
   html_document:
     toc_depth: '2'
-  pdf_document:
-    fig_caption: yes
-    highlight: haddock
-    keep_tex: yes
-    latex_engine: xelatex
-    toc_depth: 2
-header-includes: \usepackage{float} \usepackage[section]{placeins} \usepackage{booktabs}
-  \usepackage{graphicx}
 ---
 
 ```{r setup, include=FALSE}
+
 library(knitr)
 knitr::opts_chunk$set(
 	fig.pos = "H",
@@ -28,8 +21,18 @@ library(tidytext)
 library(stringr)
 library(lubridate)
 library(ggplot2)
+library(topicmodels)
+
+# Set seed for repeatable results
+set.seed(790904)
 
 options(repr.plot.width=4, repr.plot.height=3) # set plot size in the notebook
+
+load(file = "./CFPB/output/CFPB_sentiment.RData", globalenv()) # Workaround to avoid re-running LDA for knit
+load(file = "./CFPB/output/CFPB_tidy.RData", globalenv()) # Workaround to avoid re-running LDA for knit
+load(file = "./CFPB/output/CFPB_LDA.RData", globalenv()) # Workaround to avoid re-running LDA for knit
+load(file = "./CFPB/output/CFPB_LDA_k_beta.RData", globalenv()) # Workaround to avoid re-running LDA for knit
+load(file = "./CFPB/output/CFPB_LDA_k_gamma.RData", globalenv()) # Workaround to avoid re-running LDA for knit
 
 ```
 
@@ -37,6 +40,11 @@ options(repr.plot.width=4, repr.plot.height=3) # set plot size in the notebook
 
 ### 1. Introduction
 
+The aim of the project is to build a Shiny app that will allow users to do some text mining of complaints data coming from the US Consumer Financial Protection Bureau. 
+
+This markdown document was put together during the developemnt of the Shiny app to do data preparation and to get pieces of code working before implementing in the Shiny app.
+
+It will also serve as documentation to explain how to use the app by giving some worked examples.
 
 
 ### 2. Data Description
@@ -56,7 +64,8 @@ Each record/row captures a single complaint, on the following variables:
 
 ```{r data_load, include=FALSE}
 
-rm(list=ls()) # Clean up environment
+# This loads raw data provided 
+#rm(list=ls()) # Clean up environment
 
 
 # Load data from .RData
@@ -82,11 +91,12 @@ products <- levels(complaints$product)
 
 ```{r}
 
+# Exploring data to get an idea of the content
 complaints.by_date <-  complaints %>% 
   group_by(date, product) %>% 
-  summarise(count = n())
+  summarise(count = n())  # Count of complaints per day
 
-
+# Plot complaints per day by product
 ggplot(data = complaints.by_date, aes(x = date, y = count, fill = product)) + 
   geom_col(show.legend = FALSE) + 
   ggtitle("Complaints per product per day") +
@@ -102,7 +112,7 @@ complaints.by_compensated <-  complaints %>%
   left_join(complaints %>% group_by(date) %>% summarise(total = sum(n()))) %>%
   mutate(ratio = count/total)
 
-
+# Plot complaints per day by compensation variable
 ggplot(data = complaints.by_compensated, aes(x = date, y = count, fill = compensated)) + 
   geom_col() + 
   #geom_line(data=complaints.by_compensated, aes(x = date, y = ratio), colour = "black", type = 2) +  # Add rate
@@ -120,6 +130,7 @@ complaints.by_product_compensated <- complaints %>%
   ungroup()
 
 
+# Plot per product the compensated vs uncompensated counts
 ggplot(data = complaints.by_product_compensated, aes(x = date, y = count, fill = compensated)) + 
   geom_col() + # show.legend = FALSE
   ggtitle("Complaints compensated vs uncompensated per product") +
@@ -228,7 +239,7 @@ sentiment_per_complaint <-  tidy.complaints %>%
 
 #### Dealing with negation 
 
-```{r}
+```{r, include=FALSE}
 
 replace_reg <- "X{4}[/:]?|X{2}[/:]?|[^A-Za-z\\d\\s]"  # Regex for text to be removed, like XXXX, XX/
 
@@ -325,7 +336,9 @@ bigrams_separated.negated %>%
   filter(net_sentiment > 0) %>% # get positive bigrams
   count(bigram, sort = TRUE) %>%
   filter(rank(desc(n)) < 20) %>%
-  ggplot(aes(reorder(bigram,n),n)) + geom_col() + coord_flip() + xlab("")
+  ggplot(aes(reorder(bigram,n),n)) + 
+  ggtitle("Most common positive bigrams with negation") +
+  geom_col() + coord_flip() + xlab("")
 
 ```
 
@@ -336,7 +349,9 @@ bigrams_separated.negated %>%
   filter(net_sentiment < 0) %>% # get negative bigrams
   count(bigram, sort = TRUE) %>%
   filter(rank(desc(n)) < 20) %>%
-  ggplot(aes(reorder(bigram,n),n)) + geom_col() + coord_flip() + xlab("")
+  ggplot(aes(reorder(bigram,n),n)) + 
+  ggtitle("Most common negative bigrams with negation") +
+  geom_col() + coord_flip() + xlab("")
 
 ```
 \ 
@@ -425,7 +440,7 @@ sentiment.summary %>%
   facet_wrap(~product+compensated , ncol = 2, scales = "free") 
 
 
-
+# Save sentiment data for use in the app
 save(file = "./CFPB/output/CFPB_sentiment.RData", 
      list=c("sentiment_per_complaint","sentiment.summary","products" ))
 ```
@@ -435,6 +450,7 @@ save(file = "./CFPB/output/CFPB_sentiment.RData",
 
 sentiment_per_complaint %>%
   ggplot(aes(x=net_sentiment.new)) + 
+  ggtitle("Sentiment histogram - all data") +
   #geom_histogram(binwidth=.5)
   geom_histogram(binwidth=1, alpha=.5, fill="darkgreen") +
   xlim(c(-30,30)) + 
@@ -494,9 +510,7 @@ complaints_dtm <- complaints_tdf %>%
 
 We can now estimate the parameters of the topic model using LDA. We use the `LDA()` function provided by the package **topicmodelling**. We need to specify the number of latent variables (topics) we wish to use.
 
-```{r}
-# Set seed for repeatable results
-set.seed(790904)
+```{r, eval=FALSE, include=FALSE}
 
 # Perform LDA with 5 topics - logical choice because we have 5 products... but in shiny we will "test" other values
 complaints_lda_5 <- LDA(complaints_dtm, k = 5)  # 5 products
@@ -517,13 +531,13 @@ str(complaints_lda_2)
 
 ```
 
-* `beta`: these parameters control the *probability of a given topic k generating a particular word i.*
-* `gamma`: this gives the *topic "mixtures" for each document.*
+* `beta`: these parameters control the *probability of a given topic k generating a particular word i.* 
+* `gamma`: this gives the *topic "mixtures" for each document.* 
 
-```{r}
+
+```{r, eval=FALSE, warning=FALSE, include=FALSE}
 
 # tidy way of getting topic betas 
-
 complaint_topics_5 <- tidy(complaints_lda_5, matrix = "beta")
 complaint_topics_4 <- tidy(complaints_lda_4, matrix = "beta")
 complaint_topics_3 <- tidy(complaints_lda_3, matrix = "beta")
@@ -535,11 +549,16 @@ top_terms_4 <- complaint_topics_4 %>%  group_by(topic) %>%  top_n(15, beta) %>% 
 top_terms_3 <- complaint_topics_3 %>%  group_by(topic) %>%  top_n(15, beta) %>%  ungroup() %>%  arrange(topic, -beta)
 top_terms_2 <- complaint_topics_2 %>%  group_by(topic) %>%  top_n(15, beta) %>%  ungroup() %>%  arrange(topic, -beta)
 
+save(file = "./CFPB/output/CFPB_TopTerms.RData", 
+     list=c("top_terms_5","top_terms_4","top_terms_3","top_terms_2" ))
+
 ```
+
 
 Top 15 terms per topic for each of the k settings that LDA was done for.
 
-```{r}
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+
 library(ggplot2)
 
 top_terms_5 %>%
@@ -548,6 +567,7 @@ top_terms_5 %>%
   geom_col(show.legend = FALSE) +
   facet_wrap(~ topic, scales = "free") +
   coord_flip()
+
 ```
 
 ```{r}
@@ -649,7 +669,7 @@ complaint_topics2 <- complaint_topics2 %>%
 # One big tidy table with all k setting topic betas
 complaint_topics <- bind_rows(complaint_topics5, complaint_topics4, complaint_topics3, complaint_topics2)
 
-
+# Save data as .RData for re-use in app
 save(file = "./CFPB/output/CFPB_LDA_k_beta.RData", 
      list=c("complaint_topics" ))
 
@@ -675,6 +695,7 @@ complaint_gamma_2$k = 2
 
 complaint_gamma <- bind_rows(complaint_gamma_5, complaint_gamma_4, complaint_gamma_3, complaint_gamma_2)
 
+# Save data as .RData for re-use in app
 save(file = "./CFPB/output/CFPB_LDA_k_gamma.RData", 
      list=c("complaint_gamma" ))
 
@@ -691,15 +712,118 @@ beta_spread <- complaint_topics %>%
 ```
 
 
+Construct a function that will do sentiment analysis of a given string.
+
+```{r}
 
 
-```
-# reorder titles in order of topic 1, topic 2, etc before plotting
-chapters_gamma %>%
-  mutate(title = reorder(title, gamma * topic)) %>%
-  ggplot(aes(factor(topic), gamma)) +
-  geom_boxplot() +
-  facet_wrap(~ title)
+# Function to calculate sentiment of a string
+str.Sentiment <- function(string, replace_reg, lexicon) {
+  
+  str.tib <- tibble(id = 0, text = as.character(string))
+  
+  # Create tidy data by unnesting by words
+  
+  net_sentiment <- str.tib %>%
+    mutate(text = str_replace_all(text, replace_reg, "")) %>%
+    unnest_tokens(word, text, token = "words") %>%
+    group_by(id, word) %>%
+    summarise(count = n()) %>%
+    ungroup() %>%
+    left_join(get_sentiments(lexicon)) %>% # add sentiments (pos or neg)
+    select(word, sentiment, everything()) %>%
+    mutate(sentiment = ifelse(is.na(sentiment), "neutral", sentiment)) %>%
+    filter(sentiment %in% c("positive","negative")) %>%
+    group_by(id) %>%
+    summarise(net_sentiment = (sum(sentiment == "positive") - sum(sentiment == "negative"))) %>%
+    ungroup() %>%
+    select(net_sentiment) %>% 
+    as.numeric()
+  
+}
+
+# Function to calculate the Negated sentiment of a string
+str.NegSentiment <- function(string, replace_reg, lexicon, negation_words) {
+  
+  str.tib <- tibble(id = 0, text = as.character(string))
+  
+  # Create bigrams to handle negation
+  # Negate sentiment where relevant and compute neg.net_sentiment
+ neg.net_sentiment <- str.tib %>%
+    mutate(text = str_replace_all(text, replace_reg, "")) %>%
+    unnest_tokens(bigram, text, token = "ngrams", n = 2) %>%
+    separate(bigram, c("word1", "word2"), sep = " ") %>%
+    
+    # add sentiment for word 1
+    left_join(get_sentiments(lexicon), by = c(word1 = "word")) %>%
+    rename(sentiment1 = sentiment) %>%
+    mutate(sentiment1 = ifelse(is.na(sentiment1), "neutral", sentiment1)) %>%
+    
+    # add sentiment for word 2
+    left_join(get_sentiments(lexicon), by = c(word2 = "word")) %>%
+    rename(sentiment2 = sentiment) %>%
+    mutate(sentiment2 = ifelse(is.na(sentiment2), "neutral", sentiment2)) %>%
+    select(word1,word2,sentiment1,sentiment2,everything()) %>%
+    
+    # create a variable that is the opposite of sentiment2
+    mutate(opp_sentiment2 = recode(sentiment2, "positive" = "negative",
+                                 "negative" = "positive",
+                                 "neutral" = "neutral")) %>%
+    
+    # reverse sentiment2 if word1 is a negation word
+    mutate(sentiment2 = ifelse(word1 %in% negation_words, opp_sentiment2, sentiment2)) %>%
+    # remove the opposite sentiment variable, which we don't need any more
+    select(-opp_sentiment2) %>%
+    mutate(net_sentiment = (sentiment1 == "positive") + (sentiment2 == "positive") - 
+              (sentiment1 == "negative") - (sentiment2 == "negative")) %>%
+    #unite(bigram, word1, word2, sep = " ", remove = FALSE) %>% 
+    filter(!word2 %in% stop_words$word) %>% # remove cases where word2 is a stop word
+    filter(word1 %in% negation_words) %>% # only keep cases where negation took place
+    group_by(id) %>%
+    summarise(net_sentiment = sum(net_sentiment)) %>%
+    ungroup() %>%
+    select(net_sentiment) %>% 
+    as.numeric()
+    
+    neg.net_sentiment <- ifelse(is.na(neg.net_sentiment), 0, 2*neg.net_sentiment)
+}
+
+# Function to calculate the Net sentiment of a string
+str.NetSentiment <- function(string, replace_reg, lexicon, negation_words) {
+   str.Sentiment(string, replace_reg, lexicon) + 
+    str.NegSentiment(string, replace_reg, lexicon, negation_words)
+}
+
+
+replace_reg <- "X{4}[/:]?|X{2}[/:]?|[^A-Za-z\\d\\s]"  # Regex for text to be removed, like XXXX, XX/
+negation_words <- c("not", "no", "never", "without")
+
+
+# Test the functions on some strings.
+
+myNegativeText <- "I hate to be left out in the dark."
+myPositiveText <- "I am happy with the good service."
+myNegPositiveText <- "I am not happy with the service."
+myPosNegativeText <- "I do not hate the service."
+
+
+(str.Sentiment(myNegativeText, replace_reg, lexicon = "bing"))
+(str.Sentiment(myPositiveText, replace_reg, lexicon = "bing"))  
+(str.Sentiment(myNegPositiveText, replace_reg, lexicon = "bing"))  
+(str.Sentiment(myPosNegativeText, replace_reg, lexicon = "bing"))  
+
+(str.NegSentiment(myNegativeText, replace_reg, lexicon = "bing", negation_words))
+(str.NegSentiment(myPositiveText, replace_reg, lexicon = "bing", negation_words))  
+(str.NegSentiment(myNegPositiveText, replace_reg, lexicon = "bing", negation_words))  
+(str.NegSentiment(myPosNegativeText, replace_reg, lexicon = "bing", negation_words))  
+
+(str.NetSentiment(myNegativeText, replace_reg, lexicon = "bing", negation_words))
+(str.NetSentiment(myPositiveText, replace_reg, lexicon = "bing", negation_words))  
+(str.NetSentiment(myNegPositiveText, replace_reg, lexicon = "bing", negation_words))  
+(str.NetSentiment(myPosNegativeText, replace_reg, lexicon = "bing", negation_words))  
+
+
+complaints$narrative[4567]
 
 ```
 
@@ -708,7 +832,34 @@ chapters_gamma %>%
 
 ### 6. Summary 
 
-The shiny app demo can be used to demonstrate how sentiment differs between products and whether the user was compensated.
+The shiny app demo will be used to demonstrate how sentiment differs between products and whether the user was compensated.
+
+The app makes use of pre-processed data from this markdown document to make the app more responsive and to avoid re-computation as far as possible.
+
+The app consists of 3 panels each aimed at a seperate functionality of the project brief.
+
+1. Tab 1: *Sentiment analysis* 
+2. Tab 2: *Topic modeling* 
+3. Tab 3: *New complaint* 
+\ 
+
+#### Sentiment analysis tab 
+
+The user can select any combination of products and compensation variables, and the histograms will update accordingly.
+
+
+#### Topic modeling tab
+
+Topic moddeling by default will be based on selection of all products and compensation variable setting. Due to the runtime required to perform LDA, a seperate tick-box was provided to enable / disable the LDA modelling computaions to take place. This was implemented specifically with the demo in mind.
+
+
+#### New complaint tab 
+
+Not fully functional.
+At this stage a user is allowed to enter a new complaint and a sentiment score for this text will be calculated.
+
+Relative ranking and topic probability of the new complaint is not implmented yet.
+
 
 
 ### 7. References  

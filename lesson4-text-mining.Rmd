@@ -6,7 +6,9 @@ output: github_document
 ---
 
 ```{r setup, include=FALSE}
+
 knitr::opts_chunk$set(echo = TRUE)
+
 ```
 
 This notebook is the first of three notebooks on the analysis of text data, or text mining. Over the three notebooks we'll look at a selection of methods for examining text data, manipulating it into different forms, and extracting insight from it. We will mainly be using the **tidytext** package in R, which in the words of the authors of the package was developed
@@ -41,7 +43,7 @@ options(repr.plot.width=4, repr.plot.height=3) # set plot size in the notebook
 
 In this and the following workbooks we'll be using a dataset containing all of Donald Trump's tweets. An up-to-date archive of his tweets is maintained [here](https://github.com/bpb27/trump_tweet_data_archive) (refreshed hourly). These can be downloaded as zipped JSON files. I have stored these tweets (to 18 August 2017) as an .RData file. If you want to update the file, you can download the `condensed_20xx.json.zip` files and use the code below.  
 
-```
+```{r}
 library(jsonlite)
 
 tweets <- data.frame()    

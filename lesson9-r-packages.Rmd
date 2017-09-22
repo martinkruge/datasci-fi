@@ -73,6 +73,8 @@ If the above returns `TRUE`, then you're good to go. If not, then you'll probabl
 
 For this lesson we'll only require `devtools` itself, so feel free to skip the above (Rtools/xcode/r-base-dev) for now if you want to.
 
+
+
 ## Basic Setup Process
 
 Ok, so onto the basic steps involved in creating an R package.

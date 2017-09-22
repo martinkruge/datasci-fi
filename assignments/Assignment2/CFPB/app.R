@@ -5,24 +5,26 @@ library(shinythemes)
 source("global.R")
 
 # Global variables
-PAGE_TITLE <- "US Consumer Financial Protection Bureau"
+PAGE_TITLE <- "  US Consumer Financial Protection Bureau"
 CWD <- getwd()
+replace_reg <- "X{4}[/:]?|X{2}[/:]?|[^A-Za-z\\d\\s]"  # Regex for text to be removed, like XXXX, XX/
+negation_words <- c("not", "no", "never", "without")
 
 # Load data from .RData
 loadData(CWD)
 
 
 # Define UI for application
-#---------------------------------------------------------------------------------------------
+#---------------------------
 ui <- fluidPage( theme = shinytheme("flatly"),
             
             # Application title
             headerPanel( windowTitle = PAGE_TITLE,
                 title =
                 div(  
-                      h1(align="center", style = "font-weight: bold;color:#27ae60;", PAGE_TITLE),
-                      h4(align="center", "Text Mining of Financial Product Complaints for the period 2015 to 2016"),
-                      img(style="vertical-align:middle;", src="cfpb_building_logo.png", width="150", height="100")
+                     img(src="cfpb_building_logo.png", width="170", height="120", class = "pull-left"),
+                     h1(style = "left: 50px;font-weight: bold;color:#27ae60;", PAGE_TITLE),
+                     h4(style = "left: 50px;", "Text Mining of Financial Product Complaints for the period 2015 to 2016")
                    )              
             ),
    br(),
@@ -30,8 +32,7 @@ ui <- fluidPage( theme = shinytheme("flatly"),
    # Sidebar with a slider input for number of bins 
    sidebarLayout(
       sidebarPanel( width = 2,
-      #wellPanel( #width = 2,
-                                  
+ 
         checkboxGroupInput(inputId = "prodSelect", label = "Select products:", choices = products, selected = products ),
         
         br(),
@@ -44,8 +45,7 @@ ui <- fluidPage( theme = shinytheme("flatly"),
         checkboxInput(inputId = "ldaSelect", label = "Re-run LDA (!runs long)", value = FALSE),
         br(),
 
-        #textInput(inputId = "userText", label = "New complaint:", value = "Enter complaint..."),
-        textAreaInput(inputId = "userTextIn", label = "New complaint:", value = "Complaint text...", width = "250px", height = "200px"),
+        textAreaInput(inputId = "userTextIn", label = "New complaint:", value = "", width = "250px", height = "200px"),
         actionButton(inputId = "saveText", label = "Save", icon = NULL)
       
       ),
@@ -54,7 +54,10 @@ ui <- fluidPage( theme = shinytheme("flatly"),
       mainPanel(
         tabsetPanel(
           tabPanel( "Sentiment analysis", 
-                    #CWD
+                    #"Tab for sentiment analysis",
+                    br(),
+                    h4("Sentiment Histograms:"),
+                    
                     br(),
                     plotOutput("sentimentHistPlot")
           ),
@@ -62,15 +65,21 @@ ui <- fluidPage( theme = shinytheme("flatly"),
           tabPanel( "Topic modelling", 
                     #"Tab for topic modelling",
                     br(),
+                    h4("Most frequent words used by each topic:"),
+                    
+                    br(),
                     plotOutput("topicProbPlot")
+                    
           ),
           
-          tabPanel( "User text", 
+          tabPanel( "New complaint", 
                     #"Tab for user complaint input",
                     br(),
-                    verbatimTextOutput(outputId = "userTextOut"),
-                    textOutput(outputId = "userTextOut2") #, container = if (inline) span else div, inline = FALSE)
-                    #textOutput(outputId, container, inline)
+                    h4("New complaint sentiment:"),
+
+                    br(),
+                    #textOutput(outputId = "userTextOut") 
+                    uiOutput(outputId = "userTextOut")
           )
       )
    )
@@ -82,7 +91,6 @@ ui <- fluidPage( theme = shinytheme("flatly"),
 #---------------------------------------------------------------------------------------------
 server <- function(input, output) {
    
-  
    output$distPlot <- renderPlot({
       
      # generate bins based on input$bins from ui.R
@@ -95,47 +103,31 @@ server <- function(input, output) {
    
    output$sentimentHistPlot <- renderPlot({
      
-     # generate histogram based on input$prodSelect, input$compSelect from ui
-#     sentiment.summary %>%
-#       filter(product %in% input$prodSelect) %>%
-#       filter(compensated %in% input$compSelect) %>%
-#       ggplot(aes(x = net_sentiment, y = count, fill = product)) + 
-#       geom_col() + # show.legend = FALSE
-#       ggtitle("Sentiment histogram by product") +
-#       labs(x = "Sentiment", y = "Frequency") 
-       #+facet_wrap(~product+compensated , ncol = 2, scales = "free") 
- 
+     
      g1 <- sentiment_per_complaint %>%
        filter(product %in% input$prodSelect) %>%
        filter(compensated %in% input$compSelect) %>%
        ggplot(aes(x=net_sentiment.new, fill=product, color=product)) + 
-       #geom_histogram(binwidth=.5)
-       #geom_histogram(binwidth=1, alpha=.5) +
+       ggtitle("Sentiment histogram by product") +
        geom_histogram(position = "identity", binwidth = 1, alpha=.3) +
-       #geom_histogram(binwidth=1, alpha=.3) +  
-       #geom_density(alpha=.3) +
        xlim(c(-20,20)) + #ylim(c(0,1000)) +
        xlab("Sentiment") + 
        ylab("Complaint count") 
-       
+     
      g2 <- sentiment_per_complaint %>%
        filter(product %in% input$prodSelect) %>%
        filter(compensated %in% input$compSelect) %>%
        ggplot(aes(x=net_sentiment.new, fill=compensated, color=compensated)) + 
-       #geom_histogram(binwidth=.5)
+       ggtitle("Sentiment histogram by compensated") +
        geom_histogram(position = "identity", binwidth=1, alpha=.3) +
-       #geom_histogram(binwidth=1, alpha=.3) +
-       #geom_density(alpha=.3) +
        xlim(c(-20,20)) + #ylim(c(0,3500)) +
        xlab("Sentiment") + 
        ylab("Complaint count") 
      
      
-     plots1 <- AlignPlots(g1, g2)
-     do.call(grid.arrange, plots1)
-     
-     #grid.arrange(g1, g2, ncol=1)
-     
+     plots <- AlignPlots(g1, g2)
+     do.call(grid.arrange, plots)
+
    })
    
    output$topicProbPlot <- renderPlot({
@@ -166,21 +158,23 @@ server <- function(input, output) {
        mutate(term = reorder(term, beta)) %>%
        ggplot(aes(term, beta, fill = factor(topic), color = factor(topic))) +
        geom_col(show.legend = FALSE, alpha=.3) +
-       facet_wrap(~ topic, scales = "free") +
+       facet_wrap(~ topic, scales = "free", ncol=3) +
        coord_flip()
    })
-   
-   output$userTextOut <- renderText({ input$userTextIn })
    
    user_complaint <- eventReactive(input$saveText, {
      
      complainText = input$userTextIn
-     productSelected = input$prodSelect
-     compSelected = input$compSelect
-   
+     #productSelected = input$prodSelect
+     #compSelected = input$compSelect
+    
+     complaintNetSentiment = str.NetSentiment(complainText, replace_reg, lexicon="bing", negation_words)
+     
+     paste0("The net sentiment of the complaint: ", complaintNetSentiment, "<br><br><i>", complainText,"</i>")
+     
    })
    
-   output$userTextOut2 = renderText(user_complaint())   
+   output$userTextOut = renderText(user_complaint())   
    
 }
 
