@@ -1,0 +1,73 @@
+---
+title: "Web Application Development with R Using Shiny Second Edition"
+author: "Martin Kruger"
+date: "16 September 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(knitr)
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+
+
+## Base graphics and ggplot2
+
+### Bar chart
+
+```{r bar}
+
+table(mpg$class)
+
+barplot(table(mpg$class), main = "Base graphics")
+
+ggplot(data = mpg, aes(x = class)) + geom_bar() + 
+  ggtitle("ggplot2")
+
+```
+
+
+### Line chart
+
+```{r line}
+
+plot(x = 1947:1962, y = longley$GNP, type = "l",
+     xlab = "Year", main = "Base graphics")
+
+ggplot(longley, aes(x = 1947:1962, y = GNP)) + 
+  geom_line() +
+  xlab("Year") + 
+  ggtitle("ggplot2")
+
+```
+
+## Advanced tasks with dplyr and ggvis
+
+```{r}
+library(dplyr)
+
+gadf$networkDomain <- as.factor(gadf$networkDomain)
+
+### top 3 domains
+topThree <- group_by(gadf, networkDomain) %>%
+  summarise(counts = mean(users)) %>%
+  arrange(desc(counts)) %>%
+  slice(1:3) %>%
+  select(networkDomain)
+
+groupByDate <- filter(gadf, networkDomain %in% topThree$networkDomain) %>% 
+  group_by(YearMonth, networkDomain) %>% 
+  summarise(meanSession = mean(sessionDuration, na.rm = TRUE), 
+            users = sum(users), 
+            newUsers = sum(newUsers), 
+            sessions = sum(sessions))
+
+
+```
+
+
+

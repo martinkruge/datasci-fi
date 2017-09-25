@@ -151,7 +151,7 @@ The `%in%` command is often useful when using dplyr verbs:
 
 
 ```{r}
-filter(.data$ratings, userId == 1, rating %in% c(1,4))
+filter(ratings, userId == 1, rating %in% c(1,4))
 ```
 
 ## Introducing the pipe
@@ -354,6 +354,7 @@ First, we select the 15 users we want to use. I've chosen to use 15 users with m
 ```{r}
 users_frq <- ratings %>% group_by(userId) %>% summarize(count = n()) %>% arrange(desc(count))
 my_users <- users_frq$userId[101:115]
+
 ```
 
 Next, we select the 20 movies we want to use:

@@ -1,0 +1,303 @@
+---
+title: "lesson4-exercises"
+author: "Martin Kruger"
+date: "09 September 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+library(tidyverse)
+library(tidytext)
+library(stringr)
+library(lubridate)
+library(wordcloud)
+
+```
+
+
+Regular Expressions (Regex) Cheat Sheet
+Special Characters in Regular Expressions & their meanings
+Character
+Meaning
+Example
+*
+Match zero, one or more of the previous
+Ah* matches "Ahhhhh" or "A"
+?
+Match zero or one of the previous
+Ah? matches "Al" or "Ah" 
++
+Match one or more of the previous
+Ah+ matches "Ah" or "Ahhh" but not "A"
+\
+Used to escape a special character
+Hungry\? matches "Hungry?"
+.
+Wildcard character, matches any character
+do.* matches "dog", "door", "dot", etc.
+( )
+Group characters
+See example for |
+[ ]
+Matches a range of characters
+[cbf]ar matches "car", "bar", or "far"
+[0-9]+ matches any positive integer
+[a-zA-Z] matches ascii letters a-z (uppercase and lower case)
+[^0-9] matches any character not 0-9. 
+|
+Matche previous OR next character/group
+(Mon)|(Tues)day matches "Monday" or "Tuesday"
+{ }
+Matches a specified number of occurrences of the previous
+[0-9]{3} matches "315" but not "31"
+[0-9]{2,4} matches "12", "123", and "1234"
+[0-9]{2,} matches "1234567..." 
+^
+Beginning of a string. Or within a character range [] negation.
+^http matches strings that begin with http, such as a url.
+[^0-9] matches any character not 0-9.
+$
+End of a string.
+ing$ matches "exciting" but not "ingenious"
+
+
+
+
+
+## Exercises: Lesson 3 - Strings & Regular Expressions 
+
+### 1. Do the regular expression tutorial at https://regexone.com/ 
+
+**Problem 1:** Matching a decimal numbers 
+
+
+At first glance, writing a regular expression to match a number should be easy right?
+
+We have the \d special character to match any digit, and all we need to do is match the decimal point right? For simple numbers, that may be right, but when working with scientific or financial numbers, you often have to deal with positive and negative numbers, significant digits, exponents, and even different representations (like the comma used to separate thousands and millions).
+
+Below are a few different formats of numbers that you might encounter. Notice how you will have to match the decimal point itself and not an arbitrary character using the dot metacharacter. If you are having trouble skipping the last number, notice how that number ends the line compared to the rest.
+
+
+Exercise 1: Matching numbers
+Task 	Text 	 
+match 	3.14529 	To be completed
+match 	-255.34 	To be completed
+match 	128 	To be completed
+match 	1.9e10 	To be completed
+match 	123,340.00 	To be completed
+skip 	720p
+
+
+`^-?\d+(,\d+)*(\.\d+(e\d+)?)?$`
+
+```{r}
+x <- c('3.14529', '-255.34', '128', '1.9e10', '123,340.00', '720p')
+
+str_view(x, '^[\\-]?\\d+(,\\d+)*(\\.\\d+(e\\d+)?)?$')
+
+```
+\ 
+
+**Problem 2:** Matching phone numbers 
+
+Validating phone numbers is another tricky task depending on the type of input that you get. Having phone numbers from out of the state which require an area code, or international numbers which require a prefix will add complexity to the regular expression, as does the individual preferences that people have for entering phone numbers (some put dashes or whitespace while others do not for example).
+
+Below are a few phone numbers that you might encounter when using real data, write a single regular expressions that matches the number and captures the proper area code.
+
+Exercise 2: Matching phone numbers
+Task 	Text 	Capture Groups 	 
+capture 	415-555-1234 	415 	To be completed
+capture 	650-555-2345 	650 	To be completed
+capture 	(416)555-3456 	416 	To be completed
+capture 	202 555 4567 	202 	To be completed
+capture 	4035555678 	403 	To be completed
+capture 	1 416 555 9292 	416
+
+
+`^\d?\(?\s?(\d{3}).?\d{3}[-|\s]?\d{4}$`
+`1?[\s-]?\(?(\d{3})\)?[\s-]?\d{3}[\s-]?\d{4}`
+
+```{r}
+x <- c('415-555-1234', '650-555-2345', '(416)555-3456', '202 555 4567', '4035555678', '1 416 555 9292')
+
+str_view(x, '^\\d?\\(?\\s?(\\d{3}).?\\d{3}[-|\\s]?\\d{4}$')
+
+str_extract_all(x, '^\\d?\\(?\\s?(\\d{3}).?\\d{3}[-|\\s]?\\d{4}$')
+
+str_match(x, '^\\d?\\(?\\s?(\\d{3}).?\\d{3}[-|\\s]?\\d{4}$')
+```
+\ 
+
+**Problem 3:** Matching emails  
+
+When you are dealing with HTML forms, it's often useful to validate the form input against regular expressions. In particular, emails are difficult to match correctly due to the complexity of the specification and I would recommend using a built-in language or framework function instead of rolling your own. However, you can build a pretty robust regular expression that matches a great deal of common emails pretty easily using what we've learned so far.
+
+One thing to watch out for is that many people use plus addressing for one time use, such as "name+filter@gmail.com", which gets directly to "name@gmail.com" but can be filtered with the extra information. In addition, some domains have more than one component, for example, you can register a domain at "hellokitty.hk.com" and have an email with the form "ilove@hellokitty.hk.com", so you will have to be careful when matching the domain portion of the email.
+
+Below are a few common emails, in this example, try to capture the name of the email, excluding the filter (+ character and afterwards) and domain (@ character and afterwards).
+
+
+Exercise 3: Matching emails
+
+Task 	Text 	Capture Groups 	 
+capture 	tom@hogwarts.com 	tom 	To be completed
+capture 	tom.riddle@hogwarts.com 	tom.riddle 	To be completed
+capture 	tom.riddle+regexone@hogwarts.com 	tom.riddle 	To be completed
+capture 	tom@hogwarts.eu.com 	tom 	To be completed
+capture 	potter@hogwarts.com 	potter 	To be completed
+capture 	harry@hogwarts.com 	harry 	To be completed
+capture 	hermione+regexone@hogwarts.com 	hermione 	To be completed
+
+
+`^([\w\.]*)`
+
+```{r}
+
+x <- c('tom@hogwarts.com', 'tom.riddle@hogwarts.com', 'tom.riddle+regexone@hogwarts.com', 'tom@hogwarts.eu.com',
+       'potter@hogwarts.com', 'harry@hogwarts.com', 'hermione+regexone@hogwarts.com')
+x
+
+str_match(x, '^([\\w\\.]*)')
+
+```
+\ 
+
+**Problem 4:** Matching HTML 
+
+If you are looking for a robust way to parse HTML, regular expressions are usually not the answer due to the fragility of html pages on the internet today -- common mistakes like missing end tags, mismatched tags, forgetting to close an attribute quote, would all derail a perfectly good regular expression. Instead, you can use libraries like Beautiful Soup or html5lib (both Python) or phpQuery (PHP) which not only parse the HTML but allow you to walk to DOM quickly and easily.
+
+That said, there are often times when you want to quickly match tags and tag content in an editor, and if you can vouch for the input, regular expressions are a good tool to do this. As you can see in the examples below, some things that you might want to be careful about odd attributes that have extra escaped quotes and nested tags.
+
+Go ahead and write regular expressions for the following examples.
+
+Exercise 4: Capturing HTML Tags
+Task 	Text 	Capture Groups 	 
+capture 	<a>This is a link</a> 	a 	Success
+capture 	<a href='https://regexone.com'>Link</a> 	a 	Success
+capture 	<div class='test_style'>Test</div> 	div 	Success
+capture 	<div>Hello <span>world</span></div> 	div 	Success
+
+
+`<(\w+)`
+
+```{r}
+
+```
+
+
+**Problem 5:** Matching specific filenames 
+
+If you use Linux or the command line frequently, are often dealing with lists of files. Most files have a filename component as well as an extension, but in Linux, it is also common to have hidden files that have no filename.
+
+In this simple example, extract the filenames and extension types of only image files (not including temporary files for images currently being edited). Image files are defined as .jpg,.png, and .gif.
+Exercise 5: Capturing filename data
+Task 	Text 	Capture Groups 	 
+skip 	.bash_profile 		To be completed
+skip 	workspace.doc 		To be completed
+capture 	img0912.jpg 	img0912 jpg 	To be completed
+capture 	updated_img0912.png 	updated_img0912 png 	To be completed
+skip 	documentation.html 		To be completed
+capture 	favicon.gif 	favicon gif 	To be completed
+skip 	img0912.jpg.tmp 		To be completed
+skip 	access.lock
+
+
+`(.*)\.(png|jpg|gif)$`
+`(\w+)\.(jpg|png|gif)$`
+
+```{r}
+
+
+```
+
+
+**Problem 6:** Trimming whitespace from start and end of line 
+
+Write a simple regular expression to capture the content of each line, without the extra whitespace.
+Exercise 6: Matching lines
+Task 	Text 	Capture Groups 	 
+capture 				The quick brown fox... 	The quick brown fox... 	To be completed
+capture 	   jumps over the lazy dog. 	jumps over the lazy dog. 	To be completed
+
+
+`\s+(.*)$`
+`^\s*(.*)\s*$`
+
+```{r}
+
+
+```
+
+**Problem 7:** Extracting information from a log file
+
+In this example, we are going to use actual output from an Android adb debugging session. Your goal is to use any regular expression techniques that we've learned so far to extract the filename, method name and line number of line of the stack trace (they follow the form "at package.class.methodname(filename:linenumber)").
+
+Good luck!
+Exercise 7: Extracting data from log entries
+Task 	Text 	Capture Groups 	 
+skip 	W/dalvikvm( 1553): threadid=1: uncaught exception 		To be completed
+skip 	E/( 1553): FATAL EXCEPTION: main 		To be completed
+skip 	E/( 1553): java.lang.StringIndexOutOfBoundsException 		To be completed
+capture 	E/( 1553):   at widget.List.makeView(ListView.java:1727) 	makeView ListView.java 1727 	To be completed
+capture 	E/( 1553):   at widget.List.fillDown(ListView.java:652) 	fillDown ListView.java 652 	To be completed
+capture 	E/( 1553):   at widget.List.fillFrom(ListView.java:709) 	fillFrom ListView.java 709 	To be completed
+
+
+`widget\.List\.(\w+)\((.*):(\d+)\)$`
+`(\w+)\(([\w\.]+):(\d+)\)`
+
+```{r}
+
+
+```
+
+
+**Problem 8:** Parsing and extracting data from a URL
+
+When working with files and resources over a network, you will often come across URIs and URLs which can be parsed and worked with directly. Most standard libraries will have classes to parse and construct these kind of identifiers, but if you need to match them in logs or a larger corpus of text, you can use regular expressions to pull out information from their structured format quite easily.
+
+URIs, or Uniform Resource Identifiers, are a representation of a resource that is generally composed of a scheme, host, port (optional), and resource path, respectively highlighted below.
+http://regexone.com:80/page
+
+The scheme describes the protocol to communicate with, the host and port describe the source of the resource, and the full path describes the location at the source for the resource.
+
+In the exercise below, try to extract the protocol, host and port of the all the resources listed.
+Exercise 8: Extracting data from URLs
+Task 	Text 	Capture Groups 	 
+capture 	ftp://file_server.com:21/top_secret/life_changing_plans.pdf 	ftp file_server.com 21 	To be completed
+capture 	https://regexone.com/lesson/introduction#section 	https regexone.com 	To be completed
+capture 	file://localhost:4040/zip_file 	file localhost 4040 	To be completed
+capture 	https://s3cur3-server.com:9999/ 	https s3cur3-server.com 9999 	To be completed
+capture 	market://search/angry%20birds 	market search 	To be completed
+
+
+`(\w+)://([\w\-\.]+)(:(\d+))?`
+
+```{r}
+
+
+```
+
+
+
+
+*** 
+
+
+
+### 2. All of the exercises in [Chapter 14](http://r4ds.had.co.nz/strings.html)  
+of R4DS are good, and doing them all would be a great way of learning all about **stringr**. 
+
+Depending on how much time you have, a good selection of exercises is:
+ + 14.3.2.1
+ + 14.3.3.1
+ + 14.3.4.1
+ + 14.3.5.1
+ + 14.4.2
+ + 14.4.5.1 
+ 
+
+ 

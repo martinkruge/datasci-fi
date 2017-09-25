@@ -19,6 +19,8 @@ This notebook is based quite closely on the following sources:
 ### Load required packages and the dataset we created last lesson
 
 ``` r
+rm(list=ls())
+
 library(tidyverse)
 ```
 
@@ -38,10 +40,35 @@ library(tidyverse)
 load("output/recommender.RData")
 ```
 
-We need to convert the data to a matrix form or else some the later functions we use will give an error (see what happens if you don't make the change)
+We need to convert the data to matrix form otherwise some of the later functions we use will give an error (see what happens if you don't make the change).
 
 ``` r
+viewed_movies[,1]
+```
+
+    ## # A tibble: 15 x 1
+    ##    userId
+    ##     <int>
+    ##  1    149
+    ##  2    177
+    ##  3    200
+    ##  4    236
+    ##  5    240
+    ##  6    270
+    ##  7    287
+    ##  8    295
+    ##  9    303
+    ## 10    408
+    ## 11    426
+    ## 12    442
+    ## 13    500
+    ## 14    522
+    ## 15    562
+
+``` r
+#sorted_my_users <- as.character(viewed_movies[,1])
 sorted_my_users <- as.character(unlist(viewed_movies[,1]))
+
 viewed_movies <- as.matrix(viewed_movies[,-1])
 row.names(viewed_movies) <- sorted_my_users
 ```
@@ -51,10 +78,10 @@ User-based collaborative filtering
 
 ### The basic idea behind user-based collaborative filtering
 
-A really simple recommender system would just recommend the most popular movies (that a user hasn't seen before). This information is obtained by summing the values of each column of *viewed movies*
+A really simple recommender system would just recommend the most popular movies (that a user hasn't seen before). This information is obtained by summing the values of each column of *viewed movies*:
 
 ``` r
-sort(apply(viewed_movies,2,sum),decreasing = T)
+sort(apply(viewed_movies, 2, sum), decreasing = T)
 ```
 
     ##                                Beautiful Mind, A (2001) 
@@ -100,13 +127,29 @@ sort(apply(viewed_movies,2,sum),decreasing = T)
 
 This approach has an intuitive appeal but is pretty unsophisticated (everyone gets the same recommendations, barring the filtering out of seen movies!) In other words, everyone's vote counts the same.
 
-User-based CF extends the approach by changing how much each person's vote counts. Specifically, when recommending what I should watch next, a user-based CF system will upweight the votes of people that are "more similar" to me. In this context "similar" means "has seen many of the same movies as me". You can think of this as replacing the 1's in the *viewed\_movies* matrix will a number that increases with similarity to the user we're trying to recommend a movie to.
+User-based CF extends the approach by changing how much each person's vote counts. Specifically, when recommending what I should watch next, a user-based CF system will upweight the votes of people that are "more similar" to me. In this context "similar" means "has seen many of the same movies as me". You can think of this as replacing the 1's in the *viewed\_movies* matrix with a number that increases with similarity to the user we're trying to recommend a movie to.
 
 There are lots of different similarity measures. The one we'll use is called cosine similarity and is widely used, but search online for others and try them out.
 
+**Cosine** similarity :
+
+$$\\text{similarity} = \\cos(\\theta) = {\\mathbf{A} \\cdot \\mathbf{B} \\over \\|\\mathbf{A}\\|\_2 \\|\\mathbf{B}\\|\_2} = \\frac{ \\sum\\limits\_{i=1}^{n}{A\_i  B\_i} }{ \\sqrt{\\sum\\limits\_{i=1}^{n}{A\_i^2}}  \\sqrt{\\sum\\limits\_{i=1}^{n}{B\_i^2}} }$$
+
 ``` r
 # function calculating cosine similarity
-cosine_sim <- function(a,b){crossprod(a,b)/sqrt(crossprod(a)*crossprod(b))}
+cosine_sim <- function(a, b){crossprod(a, b) / sqrt(crossprod(a) * crossprod(b))}
+```
+
+``` r
+# input: row matrices 'ma' and 'mb' (with compatible dimensions)
+# output: cosine similarity matrix
+
+cos.sim=function(ma, mb){
+  mat=tcrossprod(ma, mb)
+  t1=sqrt(apply(ma, 1, crossprod))
+  t2=sqrt(apply(mb, 1, crossprod))
+  mat / outer(t1,t2)
+}
 ```
 
 Cosine similarity lies between 0 and 1 inclusive and increases with similarity. Here are a few test cases to get a feel for it:
@@ -161,12 +204,65 @@ cosine_sim(viewed_movies[1,], viewed_movies[2,])
     ##           [,1]
     ## [1,] 0.4743416
 
-Let's get similarities between user pairs. We'll do this with a loop below, because its easier to see what's going, but this will be inefficient and very slow for bigger datasets. As an exercise, see if you can do the same without loops.
+``` r
+cos.sim(viewed_movies, viewed_movies)
+```
+
+    ##           149       177       200       236       240       270       287
+    ## 149 1.0000000 0.4743416 0.5477226 0.0000000 0.0000000 0.2000000 0.1825742
+    ## 177 0.4743416 1.0000000 0.2886751 0.1767767 0.1443376 0.0000000 0.2886751
+    ## 200 0.5477226 0.2886751 1.0000000 0.0000000 0.3333333 0.5477226 0.5000000
+    ## 236 0.0000000 0.1767767 0.0000000 1.0000000 0.4082483 0.2236068 0.2041241
+    ## 240 0.0000000 0.1443376 0.3333333 0.4082483 1.0000000 0.5477226 0.5000000
+    ## 270 0.2000000 0.0000000 0.5477226 0.2236068 0.5477226 1.0000000 0.3651484
+    ## 287 0.1825742 0.2886751 0.5000000 0.2041241 0.5000000 0.3651484 1.0000000
+    ## 295 0.1414214 0.2236068 0.3872983 0.3162278 0.6454972 0.4242641 0.3872983
+    ## 303 0.7453560 0.3535534 0.5443311 0.0000000 0.4082483 0.4472136 0.2721655
+    ## 408 0.4743416 0.5000000 0.2886751 0.1767767 0.1443376 0.1581139 0.2886751
+    ## 426 0.3651484 0.1443376 0.6666667 0.0000000 0.3333333 0.5477226 0.3333333
+    ## 442 0.2696799 0.3198011 0.3692745 0.1507557 0.3692745 0.4045199 0.2461830
+    ## 500 0.3651484 0.2886751 0.3333333 0.0000000 0.3333333 0.1825742 0.3333333
+    ## 522 0.3380617 0.1336306 0.6172134 0.1889822 0.3086067 0.6761234 0.3086067
+    ## 562 0.1490712 0.2357023 0.4082483 0.3333333 0.4082483 0.4472136 0.4082483
+    ##           295       303       408       426       442       500       522
+    ## 149 0.1414214 0.7453560 0.4743416 0.3651484 0.2696799 0.3651484 0.3380617
+    ## 177 0.2236068 0.3535534 0.5000000 0.1443376 0.3198011 0.2886751 0.1336306
+    ## 200 0.3872983 0.5443311 0.2886751 0.6666667 0.3692745 0.3333333 0.6172134
+    ## 236 0.3162278 0.0000000 0.1767767 0.0000000 0.1507557 0.0000000 0.1889822
+    ## 240 0.6454972 0.4082483 0.1443376 0.3333333 0.3692745 0.3333333 0.3086067
+    ## 270 0.4242641 0.4472136 0.1581139 0.5477226 0.4045199 0.1825742 0.6761234
+    ## 287 0.3872983 0.2721655 0.2886751 0.3333333 0.2461830 0.3333333 0.3086067
+    ## 295 1.0000000 0.5270463 0.3354102 0.3872983 0.4767313 0.2581989 0.3585686
+    ## 303 0.5270463 1.0000000 0.5892557 0.6804138 0.6030227 0.5443311 0.6299408
+    ## 408 0.3354102 0.5892557 1.0000000 0.2886751 0.6396021 0.4330127 0.4008919
+    ## 426 0.3872983 0.6804138 0.2886751 1.0000000 0.6154575 0.3333333 0.9258201
+    ## 442 0.4767313 0.6030227 0.6396021 0.6154575 1.0000000 0.6154575 0.6837635
+    ## 500 0.2581989 0.5443311 0.4330127 0.3333333 0.6154575 1.0000000 0.3086067
+    ## 522 0.3585686 0.6299408 0.4008919 0.9258201 0.6837635 0.3086067 1.0000000
+    ## 562 0.5270463 0.2222222 0.3535534 0.4082483 0.6030227 0.2721655 0.5039526
+    ##           562
+    ## 149 0.1490712
+    ## 177 0.2357023
+    ## 200 0.4082483
+    ## 236 0.3333333
+    ## 240 0.4082483
+    ## 270 0.4472136
+    ## 287 0.4082483
+    ## 295 0.5270463
+    ## 303 0.2222222
+    ## 408 0.3535534
+    ## 426 0.4082483
+    ## 442 0.6030227
+    ## 500 0.2721655
+    ## 522 0.5039526
+    ## 562 1.0000000
+
+Let's get similarities between user pairs. We'll do this with a loop below, because it's easier to see what's going on, but this will be inefficient and very slow for bigger datasets. As an exercise, see if you can do the same without loops.
 
 ``` r
 user_similarities = matrix(0, nrow = 15, ncol = 15)
-for(i in 1:14){
-  for(j in (i+1):15){
+for (i in 1:14) {
+  for (j in (i + 1):15) {
     user_similarities[i,j] <- cosine_sim(viewed_movies[i,], viewed_movies[j,])
   }
 }
@@ -174,6 +270,11 @@ user_similarities <- user_similarities + t(user_similarities)
 diag(user_similarities) <- 0
 row.names(user_similarities) <- row.names(viewed_movies)
 colnames(user_similarities) <- row.names(viewed_movies)
+```
+
+``` r
+# Attempt to do the same without loops
+user_similarities2 <- cos.sim(viewed_movies, viewed_movies)
 ```
 
 ``` r
@@ -311,13 +412,13 @@ cbind(seen_movie,sim_to_user)
 
 The basic idea in user-based collaborative filtering is that user 236's vote counts less than user 408's, because user 408 is more similar to user 149 (in terms of viewing history).
 
-Note that this only means user 236 counts more in the context of making recommendations to user 149. When recommending to users *other than user 149*, user 408 may carry more weight.
+Note that this only means user 408 counts more in the context of making recommendations to user 149. When recommending to users *other than user 149*, user 236 may carry more weight.
 
 We can now work out an overall recommendation score for Apocalypse Now by multiplying together the two elements in each row of the table above, and summing these products (taking the dot product):
 
 ``` r
 # overall score for Apocalypse now
-crossprod(viewed_movies[,"Apocalypse Now (1979)"],user_similarities["149",])
+crossprod(viewed_movies[, "Apocalypse Now (1979)"], user_similarities["149",])
 ```
 
     ##          [,1]
@@ -328,27 +429,190 @@ Note this score will increase with (a) the number of people who've seen the movi
 Let's repeat this calculation for all movies and compare recommendation scores:
 
 ``` r
-user_similarities["149",] %*% viewed_movies
+user_similarities["149",]
 ```
 
-    ##      American Pie (1999) Apocalypse Now (1979) Armageddon (1998)
-    ## [1,]            2.780188              1.431154          2.800941
-    ##      Austin Powers: The Spy Who Shagged Me (1999) Beautiful Mind, A (2001)
-    ## [1,]                                     1.258241                 2.972538
-    ##      Breakfast Club, The (1985) Casablanca (1942)
-    ## [1,]                   2.328868         0.1414214
-    ##      Clear and Present Danger (1994)
-    ## [1,]                       0.7440216
-    ##      Crouching Tiger, Hidden Dragon (Wo hu cang long) (2000)
-    ## [1,]                                               0.4730667
-    ##      Fifth Element, The (1997) Inception (2010) Kill Bill: Vol. 1 (2003)
-    ## [1,]                  2.383183         2.378863                 2.208739
-    ##      Minority Report (2002) Outbreak (1995) Rain Man (1988)
-    ## [1,]               1.220789       0.7648342        2.334009
-    ##      Stand by Me (1986) Star Trek: Generations (1994) Taxi Driver (1976)
-    ## [1,]           1.694039                      1.022064          0.4743416
-    ##      Waterworld (1995) Wizard of Oz, The (1939)
-    ## [1,]         0.5601725                 2.178522
+    ##       149       177       200       236       240       270       287 
+    ## 0.0000000 0.4743416 0.5477226 0.0000000 0.0000000 0.2000000 0.1825742 
+    ##       295       303       408       426       442       500       522 
+    ## 0.1414214 0.7453560 0.4743416 0.3651484 0.2696799 0.3651484 0.3380617 
+    ##       562 
+    ## 0.1490712
+
+``` r
+viewed_movies
+```
+
+    ##     American Pie (1999) Apocalypse Now (1979) Armageddon (1998)
+    ## 149                   1                     0                 0
+    ## 177                   0                     0                 1
+    ## 200                   1                     0                 1
+    ## 236                   0                     1                 0
+    ## 240                   0                     0                 0
+    ## 270                   0                     1                 0
+    ## 287                   0                     0                 1
+    ## 295                   0                     0                 0
+    ## 303                   1                     0                 0
+    ## 408                   0                     1                 1
+    ## 426                   1                     0                 1
+    ## 442                   1                     1                 1
+    ## 500                   1                     0                 0
+    ## 522                   1                     1                 1
+    ## 562                   1                     1                 1
+    ##     Austin Powers: The Spy Who Shagged Me (1999) Beautiful Mind, A (2001)
+    ## 149                                            0                        0
+    ## 177                                            0                        0
+    ## 200                                            0                        1
+    ## 236                                            0                        0
+    ## 240                                            0                        1
+    ## 270                                            0                        1
+    ## 287                                            0                        0
+    ## 295                                            0                        1
+    ## 303                                            0                        1
+    ## 408                                            1                        0
+    ## 426                                            0                        1
+    ## 442                                            1                        1
+    ## 500                                            1                        1
+    ## 522                                            0                        1
+    ## 562                                            1                        0
+    ##     Breakfast Club, The (1985) Casablanca (1942)
+    ## 149                          1                 0
+    ## 177                          1                 0
+    ## 200                          0                 0
+    ## 236                          0                 1
+    ## 240                          0                 0
+    ## 270                          0                 0
+    ## 287                          0                 0
+    ## 295                          0                 1
+    ## 303                          1                 0
+    ## 408                          1                 0
+    ## 426                          0                 0
+    ## 442                          1                 0
+    ## 500                          1                 0
+    ## 522                          0                 0
+    ## 562                          0                 0
+    ##     Clear and Present Danger (1994)
+    ## 149                               0
+    ## 177                               1
+    ## 200                               0
+    ## 236                               0
+    ## 240                               0
+    ## 270                               0
+    ## 287                               0
+    ## 295                               0
+    ## 303                               0
+    ## 408                               0
+    ## 426                               0
+    ## 442                               1
+    ## 500                               0
+    ## 522                               0
+    ## 562                               0
+    ##     Crouching Tiger, Hidden Dragon (Wo hu cang long) (2000)
+    ## 149                                                       0
+    ## 177                                                       0
+    ## 200                                                       0
+    ## 236                                                       1
+    ## 240                                                       1
+    ## 270                                                       0
+    ## 287                                                       1
+    ## 295                                                       1
+    ## 303                                                       0
+    ## 408                                                       0
+    ## 426                                                       0
+    ## 442                                                       0
+    ## 500                                                       0
+    ## 522                                                       0
+    ## 562                                                       1
+    ##     Fifth Element, The (1997) Inception (2010) Kill Bill: Vol. 1 (2003)
+    ## 149                         1                1                        0
+    ## 177                         1                0                        0
+    ## 200                         1                1                        0
+    ## 236                         0                0                        0
+    ## 240                         0                0                        1
+    ## 270                         0                1                        1
+    ## 287                         0                1                        0
+    ## 295                         1                0                        1
+    ## 303                         1                1                        1
+    ## 408                         1                0                        0
+    ## 426                         0                1                        1
+    ## 442                         0                0                        1
+    ## 500                         0                0                        0
+    ## 522                         0                1                        1
+    ## 562                         0                0                        1
+    ##     Minority Report (2002) Outbreak (1995) Rain Man (1988)
+    ## 149                      0               0               0
+    ## 177                      0               1               0
+    ## 200                      1               0               0
+    ## 236                      0               0               0
+    ## 240                      1               0               0
+    ## 270                      1               0               0
+    ## 287                      1               0               0
+    ## 295                      1               1               1
+    ## 303                      0               0               1
+    ## 408                      0               0               1
+    ## 426                      0               0               1
+    ## 442                      0               0               1
+    ## 500                      0               0               0
+    ## 522                      0               0               1
+    ## 562                      1               1               0
+    ##     Stand by Me (1986) Star Trek: Generations (1994) Taxi Driver (1976)
+    ## 149                  1                             0                  0
+    ## 177                  1                             1                  1
+    ## 200                  0                             0                  0
+    ## 236                  0                             0                  1
+    ## 240                  0                             0                  1
+    ## 270                  0                             0                  0
+    ## 287                  0                             1                  0
+    ## 295                  0                             0                  0
+    ## 303                  1                             0                  0
+    ## 408                  1                             0                  0
+    ## 426                  0                             0                  0
+    ## 442                  0                             0                  0
+    ## 500                  0                             1                  0
+    ## 522                  0                             0                  0
+    ## 562                  0                             0                  0
+    ##     Waterworld (1995) Wizard of Oz, The (1939)
+    ## 149                 0                        0
+    ## 177                 0                        0
+    ## 200                 0                        0
+    ## 236                 0                        0
+    ## 240                 0                        1
+    ## 270                 0                        0
+    ## 287                 0                        1
+    ## 295                 1                        1
+    ## 303                 0                        1
+    ## 408                 0                        1
+    ## 426                 0                        0
+    ## 442                 1                        1
+    ## 500                 0                        1
+    ## 522                 0                        0
+    ## 562                 1                        0
+
+``` r
+as.data.frame(t(user_similarities["149",] %*% viewed_movies))
+```
+
+    ##                                                                V1
+    ## American Pie (1999)                                     2.7801881
+    ## Apocalypse Now (1979)                                   1.4311545
+    ## Armageddon (1998)                                       2.8009413
+    ## Austin Powers: The Spy Who Shagged Me (1999)            1.2582412
+    ## Beautiful Mind, A (2001)                                2.9725383
+    ## Breakfast Club, The (1985)                              2.3288676
+    ## Casablanca (1942)                                       0.1414214
+    ## Clear and Present Danger (1994)                         0.7440216
+    ## Crouching Tiger, Hidden Dragon (Wo hu cang long) (2000) 0.4730667
+    ## Fifth Element, The (1997)                               2.3831832
+    ## Inception (2010)                                        2.3788628
+    ## Kill Bill: Vol. 1 (2003)                                2.2087386
+    ## Minority Report (2002)                                  1.2207893
+    ## Outbreak (1995)                                         0.7648342
+    ## Rain Man (1988)                                         2.3340090
+    ## Stand by Me (1986)                                      1.6940393
+    ## Star Trek: Generations (1994)                           1.0220642
+    ## Taxi Driver (1976)                                      0.4743416
+    ## Waterworld (1995)                                       0.5601725
+    ## Wizard of Oz, The (1939)                                2.1785215
 
 To come up with a final recommendation, we just need to remember to remove movies user 149 has already seen, and sort the remaining movies in descending order of recommendation score.
 
@@ -378,7 +642,7 @@ user_scores %>% filter(seen == 0) %>% arrange(desc(score))
     ## 14 Crouching Tiger, Hidden Dragon (Wo hu cang long) (2000) 0.4730667    0
     ## 15                                       Casablanca (1942) 0.1414214    0
 
-Now that we've understood the calculations, let's get recommendations for one more user, 236:
+Now that we've understood the calculations, let's get recommendations for one more user, user 236:
 
 ``` r
 # recommendations for user 236
@@ -413,7 +677,7 @@ user_scores %>% filter(seen == 0) %>% arrange(desc(score))
 user_based_recommendations <- function(user, user_similarities, viewed_movies){
   
   # turn into character if not already
-  user <- ifelse(is.character(user),user,as.character(user))
+  user <- ifelse(is.character(user), user, as.character(user))
   
   # get scores
   user_scores <- data.frame(title = colnames(viewed_movies), 
@@ -421,12 +685,10 @@ user_based_recommendations <- function(user, user_similarities, viewed_movies){
                             seen = viewed_movies[user,])
   
   # sort unseen movies by score and remove the 'seen' column
-  user_recom <- user_scores %>% 
+  user_scores %>% 
     filter(seen == 0) %>% 
     arrange(desc(score)) %>% 
-    select(-seen) 
-  
-  return(user_recom)
+    select(-seen)
   
 }
 ```
@@ -454,7 +716,7 @@ user_based_recommendations(user = 149, user_similarities = user_similarities, vi
     ## 14 Crouching Tiger, Hidden Dragon (Wo hu cang long) (2000) 0.4730667
     ## 15                                       Casablanca (1942) 0.1414214
 
-Now do it for all users with `lapply`
+Now do it for all users with `lapply`:
 
 ``` r
 lapply(sorted_my_users, user_based_recommendations, user_similarities, viewed_movies)
@@ -699,14 +961,18 @@ lapply(sorted_my_users, user_based_recommendations, user_similarities, viewed_mo
     ## 10               Casablanca (1942) 0.8603796
     ## 11 Clear and Present Danger (1994) 0.8387249
 
-A variant on the above is a *k-nearest-neighbours* approach that bases recommendations *only on k most similar users*. This is faster when there are many users. Try implement this as an exercise.
+A variant on the above is a *k-nearest-neighbours* approach that bases recommendations *only on k most similar users*. This is faster when there are many users. Try to implement this as an exercise.
+
+``` r
+# TBDy
+```
 
 Item-based collaborative filtering
 ----------------------------------
 
 ### The basic idea behind item-based collaborative filtering
 
-Item-based collaborative filtering works very similarly to user-based counterpart, but is a tiny bit less intuitive (in my opinion). It is also based on similarities, but similarities between *movies* rather than *users*.
+Item-based collaborative filtering works very similarly to its user-based counterpart, but is a tiny bit less intuitive (in my opinion). It is also based on similarities, but similarities between *movies* rather than *users*.
 
 There are two main conceptual parts to item-based collaborative filtering:
 
@@ -721,8 +987,8 @@ movies_user <- t(viewed_movies)
 
 # get all similarities between MOVIES
 movie_similarities = matrix(0, nrow = 20, ncol = 20)
-for(i in 1:19){
-  for(j in (i+1):20){
+for (i in 1:19) {
+  for (j in (i + 1):20) {
     movie_similarities[i,j] <- cosine_sim(viewed_movies[,i], viewed_movies[,j])
   }
 }
@@ -735,49 +1001,49 @@ colnames(movie_similarities) <- colnames(viewed_movies)
 We can use the result to see, for example, what movies are most similar to "Apocalypse Now":
 
 ``` r
-movie_similarities[,"Apocalypse Now (1979)"]
+sort(movie_similarities[,"Apocalypse Now (1979)"], decreasing = TRUE)
 ```
 
-    ##                                     American Pie (1999) 
-    ##                                               0.4330127 
-    ##                                   Apocalypse Now (1979) 
-    ##                                               0.0000000 
-    ##                                       Armageddon (1998) 
-    ##                                               0.5773503 
     ##            Austin Powers: The Spy Who Shagged Me (1999) 
     ##                                               0.6123724 
+    ##                                       Armageddon (1998) 
+    ##                                               0.5773503 
+    ##                                Kill Bill: Vol. 1 (2003) 
+    ##                                               0.5773503 
+    ##                                         Rain Man (1988) 
+    ##                                               0.5000000 
+    ##                                       Waterworld (1995) 
+    ##                                               0.4714045 
+    ##                                     American Pie (1999) 
+    ##                                               0.4330127 
     ##                                Beautiful Mind, A (2001) 
     ##                                               0.4082483 
+    ## Crouching Tiger, Hidden Dragon (Wo hu cang long) (2000) 
+    ##                                               0.3651484 
     ##                              Breakfast Club, The (1985) 
     ##                                               0.3333333 
+    ##                                  Minority Report (2002) 
+    ##                                               0.3333333 
+    ##                                        Inception (2010) 
+    ##                                               0.3086067 
+    ##                                Wizard of Oz, The (1939) 
+    ##                                               0.3086067 
     ##                                       Casablanca (1942) 
     ##                                               0.2886751 
     ##                         Clear and Present Danger (1994) 
     ##                                               0.2886751 
-    ## Crouching Tiger, Hidden Dragon (Wo hu cang long) (2000) 
-    ##                                               0.3651484 
-    ##                               Fifth Element, The (1997) 
-    ##                                               0.1666667 
-    ##                                        Inception (2010) 
-    ##                                               0.3086067 
-    ##                                Kill Bill: Vol. 1 (2003) 
-    ##                                               0.5773503 
-    ##                                  Minority Report (2002) 
-    ##                                               0.3333333 
     ##                                         Outbreak (1995) 
     ##                                               0.2357023 
-    ##                                         Rain Man (1988) 
-    ##                                               0.5000000 
-    ##                                      Stand by Me (1986) 
-    ##                                               0.2041241 
-    ##                           Star Trek: Generations (1994) 
-    ##                                               0.0000000 
     ##                                      Taxi Driver (1976) 
     ##                                               0.2357023 
-    ##                                       Waterworld (1995) 
-    ##                                               0.4714045 
-    ##                                Wizard of Oz, The (1939) 
-    ##                                               0.3086067
+    ##                                      Stand by Me (1986) 
+    ##                                               0.2041241 
+    ##                               Fifth Element, The (1997) 
+    ##                                               0.1666667 
+    ##                                   Apocalypse Now (1979) 
+    ##                                               0.0000000 
+    ##                           Star Trek: Generations (1994) 
+    ##                                               0.0000000
 
 ### Recommending movies for a single user
 
@@ -786,54 +1052,24 @@ Let's again look at a concrete example of recommending a movie to a particular u
 User 236 has seen the following movies:
 
 ``` r
-viewed_movies["236",]
+which(viewed_movies["236", ] == 1)
 ```
 
-    ##                                     American Pie (1999) 
-    ##                                                       0 
     ##                                   Apocalypse Now (1979) 
-    ##                                                       1 
-    ##                                       Armageddon (1998) 
-    ##                                                       0 
-    ##            Austin Powers: The Spy Who Shagged Me (1999) 
-    ##                                                       0 
-    ##                                Beautiful Mind, A (2001) 
-    ##                                                       0 
-    ##                              Breakfast Club, The (1985) 
-    ##                                                       0 
+    ##                                                       2 
     ##                                       Casablanca (1942) 
-    ##                                                       1 
-    ##                         Clear and Present Danger (1994) 
-    ##                                                       0 
+    ##                                                       7 
     ## Crouching Tiger, Hidden Dragon (Wo hu cang long) (2000) 
-    ##                                                       1 
-    ##                               Fifth Element, The (1997) 
-    ##                                                       0 
-    ##                                        Inception (2010) 
-    ##                                                       0 
-    ##                                Kill Bill: Vol. 1 (2003) 
-    ##                                                       0 
-    ##                                  Minority Report (2002) 
-    ##                                                       0 
-    ##                                         Outbreak (1995) 
-    ##                                                       0 
-    ##                                         Rain Man (1988) 
-    ##                                                       0 
-    ##                                      Stand by Me (1986) 
-    ##                                                       0 
-    ##                           Star Trek: Generations (1994) 
-    ##                                                       0 
+    ##                                                       9 
     ##                                      Taxi Driver (1976) 
-    ##                                                       1 
-    ##                                       Waterworld (1995) 
-    ##                                                       0 
-    ##                                Wizard of Oz, The (1939) 
-    ##                                                       0
+    ##                                                      18
 
 Another way of doing the same thing:
 
 ``` r
-ratings_red %>% filter(userId == 236) %>% select(userId, title)
+ratings_red %>% 
+  filter(userId == 236) %>% 
+  select(userId, title)
 ```
 
     ## # A tibble: 4 x 2
@@ -844,7 +1080,7 @@ ratings_red %>% filter(userId == 236) %>% select(userId, title)
     ## 3    236                                   Apocalypse Now (1979)
     ## 4    236 Crouching Tiger, Hidden Dragon (Wo hu cang long) (2000)
 
-We now implement the main idea behind item-based filtering. For each movie, we find out its similarity between that movie and each of the four movies user 236 has seen, and sum up those similarities. The resulting sum is that movie's "recommendation score".
+We now implement the main idea behind item-based filtering. For each movie, we find the similarities between that movie and each of the four movies user 236 has seen, and sum up those similarities. The resulting sum is that movie's "recommendation score".
 
 We start by identifying the movies the user has seen:
 
@@ -856,7 +1092,7 @@ user_seen <- ratings_red %>%
         as.character()
 ```
 
-We then compute the similarities between all movies and these "seen" movies. For example, similarities the first seen movie, *Taxi Driver* are:
+We then compute the similarities between all movies and these "seen" movies. For example, similarities for the first seen movie, *Taxi Driver* are:
 
 ``` r
 user_seen[1]
@@ -1051,9 +1287,12 @@ The preceding explanation hopefully makes the details of the calculations clear,
 
 ``` r
 user_scores <- tibble(title = row.names(movie_similarities), 
-                      score = apply(movie_similarities[,user_seen],1,sum),
+                      score = apply(movie_similarities[,user_seen], 1, sum),
                       seen = viewed_movies["236",])
-user_scores %>% filter(seen == 0) %>% arrange(desc(score))
+
+user_scores %>% 
+  filter(seen == 0) %>% 
+  arrange(desc(score))
 ```
 
     ## # A tibble: 16 x 3
@@ -1083,11 +1322,19 @@ Let's repeat the process to generate a recommendation for one more user, user 14
 ``` r
 # do for user 149
 user <- "149"
-user_seen <- ratings_red %>% filter(userId == user) %>% select(title) %>% unlist() %>% as.character()
+user_seen <- ratings_red %>% 
+  filter(userId == user) %>% 
+  select(title) %>% 
+  unlist() %>% 
+  as.character()
+
 user_scores <- tibble(title = row.names(movie_similarities), 
                       score = apply(movie_similarities[,user_seen],1,sum),
                       seen = viewed_movies[user,])
-user_scores %>% filter(seen == 0) %>% arrange(desc(score))
+
+user_scores %>% 
+  filter(seen == 0) %>% 
+  arrange(desc(score))
 ```
 
     ## # A tibble: 15 x 3
@@ -1116,17 +1363,19 @@ user_scores %>% filter(seen == 0) %>% arrange(desc(score))
 item_based_recommendations <- function(user, movie_similarities, viewed_movies){
   
   # turn into character if not already
-  user <- ifelse(is.character(user),user,as.character(user))
+  user <- ifelse(is.character(user), user, as.character(user))
   
   # get scores
   user_seen <- row.names(movie_similarities)[viewed_movies[user,] == TRUE]
   user_scores <- tibble(title = row.names(movie_similarities), 
-                        score = apply(movie_similarities[,user_seen],1,sum),
+                        score = apply(movie_similarities[,user_seen], 1, sum),
                         seen = viewed_movies[user,])
+  
   # sort unseen movies by score and remove the 'seen' column
-  user_recom <- user_scores %>% filter(seen == 0) %>% arrange(desc(score)) %>% select(-seen)
-
-  return(user_recom)
+  user_scores %>% 
+    filter(seen == 0) %>% 
+    arrange(desc(score)) %>% 
+    select(-seen)
   
 }
 ```
@@ -1461,24 +1710,23 @@ row.names(ratings_wide) <- sorted_my_users
 write.csv(ratings_wide,"output/ratings_for_excel_example.csv")
 ```
 
-Now let's set up the same computations in R, which will be faster and easier to generalise beyond a particular size dataset. We start by defining a function that will compute the sum of squared differences between the observed movie ratings and any other set of predicted ratings (for example, ones predicted by matrix factorization). Note the we only count movies that have already been rated in the accuracy calculation.
+Now let's set up the same computations in R, which will be faster and easier to generalise beyond a particular size dataset. We start by defining a function that will compute the sum of squared differences between the observed movie ratings and any other set of predicted ratings (for example, ones predicted by matrix factorization). Note that we only count movies that have already been rated in the accuracy calculation.
 
 ``` r
 recommender_accuracy <- function(x, observed_ratings){
     
   # extract user and movie factors from parameter vector (note x is defined such that 
   # the first 75 elements are latent factors for users and rest are for movies)
-  user_factors <- matrix(x[1:75],15,5)
-  movie_factors <- matrix(x[76:175],5,20)
+  user_factors <- matrix(x[1:75], 15, 5)
+  movie_factors <- matrix(x[76:175], 5, 20)
   
   # get predictions from dot products of respective user and movie factor
   predicted_ratings <- user_factors %*% movie_factors
   
   # model accuracy is sum of squared errors over all rated movies
-  errors <- (observed_ratings - predicted_ratings)^2 
-  accuracy <- sqrt(mean(errors[!is.na(observed_ratings)]))   # only use rated movies
+  errors <- (observed_ratings - predicted_ratings) ^ 2 
   
-  return(accuracy)
+  sqrt(mean(errors[!is.na(observed_ratings)]))   # only use rated movies
 }
 ```
 
@@ -1489,8 +1737,8 @@ We'll now optimize the values in the user and movie latent factors, choosing the
 ``` r
 set.seed(10)
 # optimization step
-rec1 <- optim(par=runif(175), recommender_accuracy, 
-            observed_ratings = ratings_wide, control=list(maxit=100000))
+rec1 <- optim(par = runif(175), recommender_accuracy, 
+            observed_ratings = ratings_wide, control = list(maxit = 100000))
 rec1$convergence
 ```
 
@@ -1506,7 +1754,7 @@ The best value of the objective function found by `optim()` after 100000 iterati
 
 ``` r
 # extract optimal user factors
-user_factors <- matrix(rec1$par[1:75],15,5)
+user_factors <- matrix(rec1$par[1:75], 15, 5)
 head(user_factors)
 ```
 
@@ -1520,7 +1768,7 @@ head(user_factors)
 
 ``` r
 # extract optimal movie factors
-movie_factors <- matrix(rec1$par[76:175],5,20)
+movie_factors <- matrix(rec1$par[76:175], 5, 20)
 head(movie_factors)
 ```
 
@@ -1554,7 +1802,7 @@ Most importantly, we can get **predicted movie ratings** for any user, by taking
 ``` r
 # check predictions for one user
 predicted_ratings <- user_factors %*% movie_factors
-rbind(round(predicted_ratings[1,],1), as.numeric(ratings_wide[1,]))
+rbind(round(predicted_ratings[1,], 1), as.numeric(ratings_wide[1,]))
 ```
 
     ##      [,1] [,2] [,3] [,4] [,5] [,6] [,7] [,8] [,9] [,10] [,11] [,12] [,13]
@@ -1576,16 +1824,17 @@ We first rewrite the *evaluate\_fit* function to make use of L2 regularization:
 evaluate_fit_l2 <- function(x, observed_ratings, lambda){
   
   # extract user and movie factors from parameter vector
-  user_factors <- matrix(x[1:75],15,5)
-  movie_factors <- matrix(x[76:175],5,20)
+  user_factors <- matrix(x[1:75], 15, 5)
+  movie_factors <- matrix(x[76:175], 5, 20)
   
   # get predictions from dot products
   predicted_ratings <- user_factors %*% movie_factors
   
-  errors <- (observed_ratings - predicted_ratings)^2 
+  errors <- (observed_ratings - predicted_ratings) ^ 2 
   
   # L2 norm penalizes large parameter values
-  penalty <- sum(sqrt(apply(user_factors^2,1,sum))) + sum(sqrt(apply(movie_factors^2,2,sum)))
+  penalty <- sum(sqrt(apply(user_factors ^ 2, 1, sum))) + 
+    sum(sqrt(apply(movie_factors ^ 2, 2, sum)))
   
   # model accuracy contains an error term and a weighted penalty 
   accuracy <- sqrt(mean(errors[!is.na(observed_ratings)])) + lambda * penalty
@@ -1599,8 +1848,8 @@ We now rerun the optimization with this new evaluation function:
 ``` r
 set.seed(10)
 # optimization step
-rec2 <- optim(par=runif(175), evaluate_fit_l2, 
-            lambda = 3e-3, observed_ratings = ratings_wide, control=list(maxit=100000))
+rec2 <- optim(par = runif(175), evaluate_fit_l2, 
+            lambda = 3e-3, observed_ratings = ratings_wide, control = list(maxit = 100000))
 rec2$convergence
 ```
 
@@ -1616,14 +1865,14 @@ The best value found is **worse** than before, but remember that we changed the 
 
 ``` r
 # extract optimal user and movie factors
-user_factors <- matrix(rec2$par[1:75],15,5)
-movie_factors <- matrix(rec2$par[76:175],5,20)
+user_factors <- matrix(rec2$par[1:75], 15, 5)
+movie_factors <- matrix(rec2$par[76:175], 5, 20)
 
 # get predicted ratings
 predicted_ratings <- user_factors %*% movie_factors
 
 # check accuracy
-errors <- (ratings_wide - predicted_ratings)^2 
+errors <- (ratings_wide - predicted_ratings) ^ 2 
 sqrt(mean(errors[!is.na(ratings_wide)]))
 ```
 
@@ -1647,31 +1896,30 @@ rbind(round(predicted_ratings[1,],1), as.numeric(ratings_wide[1,]))
 
 We've already seen bias terms in the Excel example. Bias terms are additive factors that model the fact that some users are more generous than others (and so will give higher ratings, on average) and some movies are better than others (and so will get higher ratings, on average).
 
-Let's adapt our evaluation function further to include a bias terms for both users and movies:
+Let's adapt our evaluation function further to include bias terms for both users and movies:
 
 ``` r
 ## add an additive bias term for each user and movie
 
 evaluate_fit_l2_bias <- function(x, observed_ratings, lambda){
   # extract user and movie factors and bias terms from parameter vector
-  user_factors <- matrix(x[1:75],15,5)
-  movie_factors <- matrix(x[76:175],5,20)
+  user_factors <- matrix(x[1:75], 15, 5)
+  movie_factors <- matrix(x[76:175], 5, 20)
   # the bias vectors are repeated to make the later matrix calculations easier 
-  user_bias <- matrix(x[176:190],nrow=15,ncol=20)
-  movie_bias <- t(matrix(x[191:210],nrow=20,ncol=15))
+  user_bias <- matrix(x[176:190],nrow = 15, ncol = 20)
+  movie_bias <- t(matrix(x[191:210], nrow = 20, ncol = 15))
   
   # get predictions from dot products + bias terms
   predicted_ratings <- user_factors %*% movie_factors + user_bias + movie_bias
   
-  errors <- (observed_ratings - predicted_ratings)^2 
+  errors <- (observed_ratings - predicted_ratings) ^ 2 
   
   # L2 norm penalizes large parameter values (note not applied to bias terms)
-  penalty <- sum(sqrt(apply(user_factors^2,1,sum))) + sum(sqrt(apply(movie_factors^2,2,sum)))
+  penalty <- sum(sqrt(apply(user_factors ^ 2, 1, sum))) + 
+    sum(sqrt(apply(movie_factors ^ 2, 2, sum)))
   
   # model accuracy contains an error term and a weighted penalty 
-  accuracy <- sqrt(mean(errors[!is.na(observed_ratings)])) + lambda * penalty
-  
-  return(accuracy)
+  sqrt(mean(errors[!is.na(observed_ratings)])) + lambda * penalty
 }
 ```
 
@@ -1680,8 +1928,8 @@ Again, rerun the optimization:
 ``` r
 set.seed(10)
 # optimization step (note longer parameter vector to include bias)
-rec3 <- optim(par=runif(220),evaluate_fit_l2_bias,
-              observed_ratings = ratings_wide, lambda = 3e-3, control=list(maxit=100000))
+rec3 <- optim(par = runif(220), evaluate_fit_l2_bias,
+              observed_ratings = ratings_wide, lambda = 3e-3, control = list(maxit = 100000))
 rec3$convergence
 ```
 
@@ -1697,16 +1945,16 @@ This value isn't comparable to either of the previous values, for the same reaso
 
 ``` r
 # extract optimal user and movie factors and bias terms
-user_factors <- matrix(rec3$par[1:75],15,5)
-movie_factors <- matrix(rec3$par[76:175],5,20)
-user_bias <- matrix(rec3$par[176:190],nrow=15,ncol=20)
-movie_bias <- t(matrix(rec3$par[191:210],nrow=20,ncol=15))
+user_factors <- matrix(rec3$par[1:75], 15, 5)
+movie_factors <- matrix(rec3$par[76:175], 5, 20)
+user_bias <- matrix(rec3$par[176:190], nrow = 15, ncol = 20)
+movie_bias <- t(matrix(rec3$par[191:210], nrow = 20, ncol = 15))
 
 # get predicted ratings
 predicted_ratings <- user_factors %*% movie_factors + user_bias + movie_bias
 
 # check accuracy
-errors <- (ratings_wide - predicted_ratings)^2 
+errors <- (ratings_wide - predicted_ratings) ^ 2 
 sqrt(mean(errors[!is.na(ratings_wide)]))
 ```
 
@@ -1746,7 +1994,7 @@ Finally, we again get predicted ratings for one user:
 
 ``` r
 # check predictions for one user
-rbind(round(predicted_ratings[1,],1), as.numeric(ratings_wide[1,]))
+rbind(round(predicted_ratings[1,], 1), as.numeric(ratings_wide[1,]))
 ```
 
     ##      [,1] [,2] [,3] [,4] [,5] [,6] [,7] [,8] [,9] [,10] [,11] [,12] [,13]

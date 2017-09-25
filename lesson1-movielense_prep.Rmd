@@ -29,6 +29,7 @@ load("data/movielens-small.RData")
 
 ```
 
+
 ## Prepare for recommender
 
 ```{r prep_movielens}

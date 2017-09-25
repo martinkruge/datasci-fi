@@ -24,6 +24,7 @@ This notebook is based quite closely on the following sources:
 * Chapter 22 of Joel Grus' ["Data Science from Scratch: First Principles with Python"](http://shop.oreilly.com/product/0636920033400.do). The (Python) code from the book is [here](https://github.com/joelgrus/data-science-from-scratch).
 * Part of [Lesson 4](http://course.fast.ai/lessons/lesson4.html) of the fast.ai course "Practical Deep Learning for Coders". There's a timeline of the lesson [here](http://wiki.fast.ai/index.php/Lesson_4_Timeline). Code (also in Python) is [here](https://github.com/fastai/courses/tree/master/deeplearning1). 
 
+
 ### Load required packages and the dataset we created last lesson
 
 ```{r}
@@ -38,10 +39,14 @@ We need to convert the data to matrix form otherwise some of the later functions
 
 
 ```{r}
+viewed_movies[,1]
+#sorted_my_users <- as.character(viewed_movies[,1])
 sorted_my_users <- as.character(unlist(viewed_movies[,1]))
+
 viewed_movies <- as.matrix(viewed_movies[,-1])
 row.names(viewed_movies) <- sorted_my_users
 ```
+
 
 ## User-based collaborative filtering
 
@@ -60,10 +65,14 @@ User-based CF extends the approach by changing how much each person's vote count
 
 There are lots of different similarity measures. The one we'll use is called cosine similarity and is widely used, but search online for others and try them out.
 
+**Cosine** similarity :   
+
+$$\text{similarity} = \cos(\theta) = {\mathbf{A} \cdot \mathbf{B} \over \|\mathbf{A}\|_2 \|\mathbf{B}\|_2} = \frac{ \sum\limits_{i=1}^{n}{A_i  B_i} }{ \sqrt{\sum\limits_{i=1}^{n}{A_i^2}}  \sqrt{\sum\limits_{i=1}^{n}{B_i^2}} }$$
 
 ```{r}
 # function calculating cosine similarity
 cosine_sim <- function(a, b){crossprod(a, b) / sqrt(crossprod(a) * crossprod(b))}
+
 ```
 
 
@@ -110,6 +119,7 @@ cosine_sim(x1,x2)
 # try an example from our data
 as.numeric(viewed_movies[1,]) # user 1's viewing history
 as.numeric(viewed_movies[2,]) # user 2's viewing history
+
 cosine_sim(viewed_movies[1,], viewed_movies[2,])
 
 cos.sim(viewed_movies, viewed_movies)
@@ -134,6 +144,7 @@ colnames(user_similarities) <- row.names(viewed_movies)
 ```{r}
 # Attempt to do the same without loops
 user_similarities2 <- cos.sim(viewed_movies, viewed_movies)
+diag(user_similarities2) <- 0
 
 ```
 
@@ -169,7 +180,11 @@ Let's work through the calculations for one movie, say Apocalypse Now (movie 2).
 
 ```{r}
 seen_movie <- viewed_movies[,"Apocalypse Now (1979)"]
+seen_movie
+
 sim_to_user <- user_similarities["149",]
+sim_to_user
+
 cbind(seen_movie,sim_to_user)
 ```
 
@@ -255,7 +270,8 @@ Now do it for all users with `lapply`:
 
 
 ```{r}
-lapply(sorted_my_users, user_based_recommendations, user_similarities, viewed_movies)
+lapply(X = sorted_my_users, FUN = user_based_recommendations, user_similarities, viewed_movies)
+
 ```
 
 A variant on the above is a *k-nearest-neighbours* approach that bases recommendations *only on k most similar users*. This is faster when there are many users. Try to implement this as an exercise.
@@ -263,6 +279,87 @@ A variant on the above is a *k-nearest-neighbours* approach that bases recommend
 ```{r}
 
 # TBDy
+#distances <- as.matrix(dist(viewed_movies, method="cosine"))
+
+
+
+k.nearest.neighbors <- function(i, distance.matrix, k = 5)
+{
+  ordered.neighbors <- order(distance.matrix[i, ]) 
+  # This just gives us the list of points that are
+  # closest to row i in descending order.
+  
+  # The first entry is always 0 (the closest point is the point itself) so 
+  # let's ignore that entry and return points 2:(k+1) instead of 1:k
+  return(ordered.neighbors[2:(k + 1)])
+}
+
+
+
+
+library(reshape2)
+
+ratings <- read.csv(con <- textConnection('
+User,Item,Rating
+Anna,Apple,2
+Bob,Apple,4
+Carlos,Apple,1
+Ethan,Apple,1
+Gene,Apple,2
+Anna,Banana,4
+Dana,Banana,3
+Ethan,Banana,5
+Frank,Banana,5
+Bob,Carrot,1
+Ethan,Carrot,2
+Gene,Carrot,4
+'), header = T)
+
+R <- ratings %>% dcast(Item ~ User)
+
+ProductNames <- R[,1]
+R <- R[,-1] # only ratings
+
+# tanimoto similarity (~Jaccard coefficiet)
+tanimoto <- function(v1,v2) length(intersect(v1,v2))/length(union(v1,v2))
+
+# return top-k similar users
+getKNN <- function(R, i, k, sim = tanimoto) {
+  similarity <- array(0,length(R))
+  for(j in 1:length(R)) {
+    if(i!=j) similarity[j] = sim(which(!is.na(R[,i])),which(!is.na(R[,j])))
+  }
+  idx <- order(similarity, decreasing = T)[1:k]
+  data.frame(idx = idx, similarity = similarity[idx])
+}
+
+kNNRecommender <- function(R, k) {
+  reco <- data.frame()
+  for(u in 1:length(R)) {
+    userItems <- which(!is.na(R[,u])) #items rated by user
+    nn <- getKNN(R,u, k) # get user neighbours
+
+    # rating prediction - wiegted by similarity
+    r <- array(0, c(dim(R)[1], k))
+    for(i in 1:k) {
+      r[,i] = R[,nn[i,]$idx] * nn[i,]$similarity
+    }
+    r[is.na(r)] <- 0
+    userReco <- rowSums(r) / sum(nn$similarity)
+    userRecoIdx <- order(userReco, decreasing = T)
+
+    # remove items already rated by user
+    userRecoIdx <- userRecoIdx[-userItems]
+
+    # add to recommendations result
+    reco <- rbind(reco, data.frame(
+      User=u,
+      Item=(if(length(userRecoIdx)==0) NA else userRecoIdx),
+      Prediction=(if(length(userRecoIdx)==0) NA else userReco[userRecoIdx])
+    ))
+  }
+  reco
+}
 
 
 ```
@@ -396,6 +493,7 @@ user_scores %>%
   arrange(desc(score))
 ```
 
+
 ### A simple function to generate an item-based CF recommendation for any user
 
 
@@ -464,6 +562,7 @@ row.names(ratings_wide) <- sorted_my_users
 write.csv(ratings_wide,"output/ratings_for_excel_example.csv")
 ```
 
+
 Now let's set up the same computations in R, which will be faster and easier to generalise beyond a particular size dataset. We start by defining a function that will compute the sum of squared differences between the observed movie ratings and any other set of predicted ratings (for example, ones predicted by matrix factorization). Note that we only count movies that have already been rated in the accuracy calculation.
 
 
@@ -494,7 +593,7 @@ We'll now optimize the values in the user and movie latent factors, choosing the
 set.seed(10)
 # optimization step
 rec1 <- optim(par = runif(175), recommender_accuracy, 
-            observed_ratings = ratings_wide, control = list(maxit = 100000))
+            observed_ratings = ratings_wide, control = list(maxit = 1000000))
 rec1$convergence
 rec1$value
 ```
@@ -523,6 +622,7 @@ Most importantly, we can get **predicted movie ratings** for any user, by taking
 predicted_ratings <- user_factors %*% movie_factors
 rbind(round(predicted_ratings[1,], 1), as.numeric(ratings_wide[1,]))
 ```
+
 
 ### Adding L2 regularization
 
@@ -563,7 +663,7 @@ We now rerun the optimization with this new evaluation function:
 set.seed(10)
 # optimization step
 rec2 <- optim(par = runif(175), evaluate_fit_l2, 
-            lambda = 3e-3, observed_ratings = ratings_wide, control = list(maxit = 100000))
+            lambda = 3e-3, observed_ratings = ratings_wide, control = list(maxit = 1000000))
 rec2$convergence
 rec2$value
 ```
@@ -631,7 +731,7 @@ Again, rerun the optimization:
 set.seed(10)
 # optimization step (note longer parameter vector to include bias)
 rec3 <- optim(par = runif(220), evaluate_fit_l2_bias,
-              observed_ratings = ratings_wide, lambda = 3e-3, control = list(maxit = 100000))
+              observed_ratings = ratings_wide, lambda = 3e-3, control = list(maxit = 1000000))
 rec3$convergence
 rec3$value
 ```

@@ -23,8 +23,8 @@ ui <- fluidPage( theme = shinytheme("flatly"),
                 title =
                 div(  
                      img(src="cfpb_building_logo.png", width="170", height="120", class = "pull-left"),
-                     h1(style = "left: 50px;font-weight: bold;color:#27ae60;", PAGE_TITLE),
-                     h4(style = "left: 50px;", "Text Mining of Financial Product Complaints for the period 2015 to 2016")
+                     h1(align = "center", style = "font-weight: bold;color:#27ae60;", PAGE_TITLE),
+                     h4(align = "center", "Text Mining of Financial Product Complaints for the period 2015 to 2016")
                    )              
             ),
    br(),
@@ -109,8 +109,8 @@ server <- function(input, output) {
        filter(compensated %in% input$compSelect) %>%
        ggplot(aes(x=net_sentiment.new, fill=product, color=product)) + 
        ggtitle("Sentiment histogram by product") +
-       geom_histogram(position = "identity", binwidth = 1, alpha=.3) +
-       xlim(c(-20,20)) + #ylim(c(0,1000)) +
+       geom_histogram(position = "stack", binwidth = 1, alpha=.3) +
+       xlim(c(-30,30)) + #ylim(c(0,1000)) +
        xlab("Sentiment") + 
        ylab("Complaint count") 
      
@@ -119,8 +119,8 @@ server <- function(input, output) {
        filter(compensated %in% input$compSelect) %>%
        ggplot(aes(x=net_sentiment.new, fill=compensated, color=compensated)) + 
        ggtitle("Sentiment histogram by compensated") +
-       geom_histogram(position = "identity", binwidth=1, alpha=.3) +
-       xlim(c(-20,20)) + #ylim(c(0,3500)) +
+       geom_histogram(position = "stack", binwidth=1, alpha=.3) +
+       xlim(c(-30,30)) + #ylim(c(0,3500)) +
        xlab("Sentiment") + 
        ylab("Complaint count") 
      

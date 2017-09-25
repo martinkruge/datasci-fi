@@ -1,0 +1,1475 @@
+---
+title: "R4D Exercises"
+author: "Martin Kruger"
+date: "10 September 2017"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+
+library(knitr)
+library(tidyverse)
+
+knitr::opts_chunk$set(include = FALSE)
+
+
+#Color Format
+colFmt = function(x, color){
+  outputFormat = opts_knit$get("rmarkdown.pandoc.to")
+  if(outputFormat == 'latex')
+    paste("\\textcolor{",color,"}{",x,"}",sep="")
+  else if(outputFormat == 'html')
+    paste("<font color='",color,"'>",x,"</font>",sep="")
+  else
+    x
+}
+
+# `r colFmt("MY RED TEXT",'red')`
+
+```
+\ 
+
+
+## 5. Data Transformation
+
+### 5.1 Introduction
+
+```{r}
+library(nycflights13)
+library(tidyverse)
+
+```
+
+
+
+### 5.2 Filter rows with `filter()`
+
+#### 5.2.1 Comparisons 
+
+#### 5.2.2 Logical operators 
+
+#### 5.2.3 Missing values 
+
+#### 5.2.4 Exercises 
+
+1. Find all flights that
+    1. Had an arrival delay of two or more hours
+    2. Flew to Houston (IAH or HOU)
+    3. Were operated by United, American, or Delta
+    4. Departed in summer (July, August, and September)
+    5. Arrived more than two hours late, but didn’t leave late
+    6. Were delayed by at least an hour, but made up over 30 minutes in flight
+    7. Departed between midnight and 6am (inclusive)
+
+```{r}
+
+flights
+airlines
+
+# 1.
+filter(flights, arr_delay >= 120)
+
+# 2.
+filter(flights, dest %in% c('IAH','HOU'))
+
+# 3. 
+inner_join(flights, filter(airlines, name %in% c('United Air Lines Inc.','American Airlines Inc.','Delta Air Lines Inc.')) )
+
+# 4.
+filter(flights, between(month, 7,9))
+
+# 5.
+filter(flights, !is.na(dep_delay), dep_delay <= 0, arr_delay > 120)
+
+# 6. 
+#filter(flights, !is.na(dep_delay), dep_delay >= 60, ( arr_time - sched_arr_time > 30))
+filter(flights, !is.na(dep_delay), dep_delay >= 60, ( dep_delay - arr_delay > 30))
+
+# 7. 
+filter(flights, between(dep_time, 0, 600) | dep_time == 2400)
+
+```
+
+2. Another useful **dplyr** filtering helper is `between()`. What does it do? Can you use it to simplify the code needed to answer the previous challenges?
+
+```
+between() inclusive of both start and end values
+
+between(x, left, right) is equivalent to x >= left & x <= right
+
+```
+
+3. How many flights have a missing `dep_time`? What other variables are missing? What might these rows represent?
+
+```{r}
+
+filter(flights, is.na(dep_time))
+
+# Canceled flights
+
+```
+
+
+4. Why is NA ^ 0 not missing? Why is NA | TRUE not missing? Why is FALSE & NA not missing? Can you figure out the general rule? (NA * 0 is a tricky counterexample!)
+
+`NA^0 == 1`, because for all numeric values $x^0 = 1$ 
+
+
+### 5.3 Arrange rows with `arrange()`
+
+`arrange()` works similarly to `filter()` except that instead of selecting rows, it changes their order. 
+
+#### 5.3.1 Exercises
+
+1. How could you use arrange() to sort all missing values to the start? (Hint: use is.na()).
+2. Sort flights to find the most delayed flights. Find the flights that left earliest.
+3. Sort flights to find the fastest flights.
+4. Which flights travelled the longest? Which travelled the shortest?
+
+```{r, include=TRUE, eval=FALSE}
+# 1.
+arrange(flights, desc(is.na(dep_time)), dep_time)
+
+# 2. 
+arrange(flights, desc(dep_delay), dep_time)
+arrange(flights, dep_delay, dep_time)
+
+# 3. 
+arrange(flights, air_time)
+
+# 4. 
+arrange(flights, desc(distance))
+arrange(flights, distance)
+
+```
+\ 
+
+### 5.4 Select columns with `select()`
+
+There are a number of helper functions you can use within `select()`:  
+
+ + `starts_with("abc")`: matches names that begin with “abc”.  
+ + `ends_with("xyz")`: matches names that end with “xyz”.  
+ + `contains("ijk")`: matches names that contain “ijk”.  
+ + `matches("(.)\\1")`: selects variables that match a regular expression. This one matches any variables that contain repeated characters.  
+ + `num_range("x", 1:3)`: matches x1, x2 and x3.  
+\ 
+
+
+#### 5.4.1 Exercises
+
+1. Brainstorm as many ways as possible to select `dep_time`, `dep_delay`, `arr_time`, and `arr_delay` from `flights`.
+2. What happens if you include the name of a variable multiple times in a `select()` call?
+3. What does the `one_of()` function do? Why might it be helpful in conjunction with this vector?
+`vars <- c("year", "month", "day", "dep_delay", "arr_delay")`
+4. Does the result of running the following code surprise you? How do the select helpers deal with case by default? How can you change that default?
+`select(flights, contains("TIME"))`
+
+```{r, include=TRUE, eval=FALSE}
+
+# 1.
+select(flights, dep_time, dep_delay, arr_time, arr_delay)
+select(flights, starts_with("dep_"), starts_with("arr_"))
+select(flights, matches("^(dep|arr)_(time|delay)$"))
+
+# 2. 
+select(flights, year, month, day, year, year)
+
+# 3.
+vars <- c("year", "month", "day", "dep_delay", "arr_delay")
+select(flights, one_of(vars))
+
+# 4.
+select(flights, contains("TIME"))
+
+select(flights, contains("TIME", ignore.case = FALSE))
+
+```
+\ 
+
+### 5.5 Add new variables with `mutate()`
+
+Besides selecting sets of existing columns, it’s often useful to add new columns that are functions of existing columns. That’s the job of `mutate()`. 
+
+If you only want to keep the new variables, use `transmute()` 
+
+
+#### 5.5.1 Useful creation functions
+
+ + Arithmetic operators: +, -, *, /, ^.  
+ + Modular arithmetic: `%/%` (integer division) and `%%` (remainder), where `x == y * (x %/% y) + (x %% y)`.  
+ + Logs: `log()`, `log2()`, `log10()`.  
+ + Offsets: `lead()` and `lag()`.  
+ + Cumulative and rolling aggregates: R provides functions for running sums, products, mins and maxes: `cumsum()`, `cumprod()`, `cummin()`, `cummax()`; and dplyr provides `cummean()` for cumulative means.  
+ + Logical comparisons, `<, <=, >, >=, !=`.  
+ + Ranking: there are a number of ranking functions, but you should start with `min_rank()`. `row_number()`, `dense_rank()`, `percent_rank()`, `cume_dist()`, `ntile()`.  
+ 
+ 
+#### 5.5.2 Exercises 
+
+1. Currently `dep_time` and `sched_dep_time` are convenient to look at, but hard to compute with because they’re not really continuous numbers. Convert them to a more convenient representation of number of minutes since midnight.
+2. Compare `air_time` with `arr_time - dep_time`. What do you expect to see? What do you see? What do you need to do to fix it?
+3. Compare `dep_time`, `sched_dep_time`, and `dep_delay`. How would you expect those three numbers to be related?
+4. Find the 10 most delayed flights using a ranking function. How do you want to handle ties? Carefully read the documentation for `min_rank()`.
+5. What does `1:3 + 1:10` return? Why?
+6. What trigonometric functions does R provide?
+ 
+
+```{r}
+flights
+
+# 1.
+mutate(flights, dep_time_mins = dep_time %/% 100 * 60 + dep_time %% 100, 
+       sched_dep_time_mins = sched_dep_time %/% 100 * 60 + sched_dep_time %% 100) %>%
+  select(dep_time, dep_time_mins, sched_dep_time, sched_dep_time_mins)
+
+
+time2mins <- function(x) {
+   x %/% 100 * 60 + x %% 100
+}
+
+mutate(flights, dep_time_mins = time2mins(dep_time), sched_dep_time_mins = time2mins(sched_dep_time)) %>%
+  select(dep_time, dep_time_mins, sched_dep_time, sched_dep_time_mins)
+
+
+# 2. Time zone difference
+mutate(flights, air_time2 = arr_time - dep_time,
+       air_time_diff = air_time2 - air_time) %>%
+  filter(air_time_diff != 0) %>%
+  select(air_time, air_time2, dep_time, arr_time, dest)
+
+
+# 3. 
+mutate(flights, dep_delay2 = dep_time - sched_dep_time) %>%
+  select(sched_dep_time, dep_time, dep_delay, dep_delay2) %>%
+  filter(dep_delay != dep_delay2)
+
+mutate(flights, dep_delay2 = time2mins(dep_time) - time2mins(sched_dep_time)) %>%
+  select(sched_dep_time, dep_time, dep_delay, dep_delay2) %>%
+  filter(dep_delay != dep_delay2)
+
+
+# 4.
+mutate(flights,
+       dep_delay_rank = min_rank(-dep_delay)) %>%
+  arrange(dep_delay_rank) %>% 
+  filter(dep_delay_rank <= 10)
+
+
+# 5.
+(1:3 + 1:10)
+
+
+# 6.
+
+#cos, sin, tan, acos, asin, atan
+
+```
+
+
+### 5.6 Grouped summaries with `summarise()`
+
+It collapses a data frame to a single row. 
+ 
+
+#### 5.6.1 Combining multiple operations with the pipe
+
+#### 5.6.2 Missing values
+
+#### 5.6.3 Counts
+
+#### 5.6.4 Useful summary functions
+
+ + Measures of location: we’ve used `mean(x)`, but `median(x)` is also useful. The mean is the sum divided by the length; the median is a value where 50% of x is above it, and 50% is below it.  
+ + Measures of spread: `sd(x)`, `IQR(x)`, `mad(x)`. The mean squared deviation, or standard deviation or sd for short, is the standard measure of spread. The interquartile range `IQR()` and median absolute deviation `mad(x)` are robust equivalents that may be more useful if you have outliers.  
+ + Measures of rank: `min(x)`, `quantile(x, 0.25)`, `max(x)`. Quantiles are a generalisation of the median. For example, `quantile(x, 0.25)` will find a value of x that is greater than 25% of the values, and less than the remaining 75%.  
+ + Measures of position: `first(x)`, `nth(x, 2)`, `last(x)`. These work similarly to `x[1]`, `x[2]`, and `x[length(x)]` but let you set a default value if that position does not exist (i.e. you’re trying to get the 3rd element from a group that only has two elements).  
+ + Counts: You’ve seen `n()`, which takes no arguments, and returns the size of the current group. To count the number of non-missing values, use `sum(!is.na(x))`. To count the number of distinct (unique) values, use `n_distinct(x)`.  
+ `not_cancelled %>% count(dest)`  
+ `not_cancelled %>% count(tailnum, wt = distance)`  
+ + Counts and proportions of logical values: `sum(x > 10)`, `mean(y == 0)`. When used with numeric functions, TRUE is converted to 1 and FALSE to 0. This makes `sum()` and `mean()` very useful: `sum(x)` gives the number of TRUEs in x, and `mean(x)` gives the proportion.  
+
+
+#### 5.6.5 Grouping by multiple variables
+
+#### 5.6.6 Ungrouping
+
+If you need to remove grouping, and return to operations on ungrouped data, use `ungroup()`.  
+
+
+#### 5.6.7 Exercises
+
+1. Brainstorm at least 5 different ways to assess the typical delay characteristics of a group of flights. Consider the following scenarios:
+ + A flight is 15 minutes early 50% of the time, and 15 minutes late 50% of the time.  
+ + A flight is always 10 minutes late.  
+ + A flight is 30 minutes early 50% of the time, and 30 minutes late 50% of the time.  
+ + 99% of the time a flight is on time. 1% of the time it’s 2 hours late.  
+ Which is more important: arrival delay or departure delay?
+
+2. Come up with another approach that will give you the same output as `not_cancelled %>% count(dest)` and `not_cancelled %>% count(tailnum, wt = distance)` (without using `count()`).  
+
+3. Our definition of cancelled flights `(is.na(dep_delay) | is.na(arr_delay) )` is slightly suboptimal. Why? Which is the most important column?
+
+4. Look at the number of cancelled flights per day. Is there a pattern? Is the proportion of cancelled flights related to the average delay?
+
+5. Which carrier has the worst delays? Challenge: can you disentangle the effects of bad airports vs. bad carriers? Why/why not? (Hint: think about `flights %>% group_by(carrier, dest) %>% summarise(n()))`
+
+6. What does the sort argument to `count()` do. When might you use it?
+\ 
+
+```
+# 1. 
+Arrival delay is more important. Arriving early is nice, but equally as good as arriving late is bad. Variation is worse than consistency; if I know the plane will always arrive 10 minutes late, then I can plan for it arriving as if the actual arrival time was 10 minutes later than the scheduled arrival time.
+
+So I’d try something that calculates the expected time of the flight, and then aggregates over any delays from that time. I would ignore any early arrival times. A better ranking would also consider cancellations, and need a way to convert them to a delay time (perhaps using the arrival time of the next flight to the same destination).
+
+```
+
+```{r include=TRUE, eval=FALSE}
+
+# 2.
+not_cancelled <- flights %>% 
+  filter(!is.na(dep_delay), !is.na(arr_delay))
+
+#not_cancelled %>% count(dest)
+not_cancelled %>% group_by(dest) %>% tally()
+
+#not_cancelled %>% count(tailnum, wt = distance)
+not_cancelled %>% group_by(tailnum) %>% summarise(n= sum(distance))
+
+
+# 3.
+
+
+
+# 4.
+
+cancelled_delayed <- 
+  flights %>%
+  mutate(cancelled = (is.na(arr_delay) | is.na(dep_delay))) %>%
+  group_by(year, month, day) %>%
+  summarise(prop_cancelled = mean(cancelled),
+            avg_dep_delay = mean(dep_delay, na.rm = TRUE))
+
+ggplot(cancelled_delayed, aes(x = avg_dep_delay, prop_cancelled)) +
+  geom_point() +
+  geom_smooth()
+
+
+# 5.
+flights %>% group_by(carrier, dest) %>% summarise(n())
+
+
+flights %>%
+  #filter(arr_delay > 0) %>%
+  group_by(carrier) %>%
+  summarise(arr_delay = mean(arr_delay, na.rm = TRUE)) %>%
+  arrange(desc(arr_delay))
+
+
+# 6.
+
+
+```
+
+
+\ 
+
+### 5.7 Grouped mutates (and filters)
+
+Grouping is most useful in conjunction with `summarise()`, but you can also do convenient operations with `mutate()` and `filter()`:
+
+A grouped filter is a grouped mutate followed by an ungrouped filter.  
+
+
+##### 5.7.1 Exercises
+
+1. Refer back to the lists of useful mutate and filtering functions. Describe how each operation changes when you combine it with grouping.  
+2. Which plane (tailnum) has the worst on-time record?  
+3. What time of day should you fly if you want to avoid delays as much as possible?  
+4. For each destination, compute the total minutes of delay. For each, flight, compute the proportion of the total delay for its destination.  
+5. Delays are typically temporally correlated: even once the problem that caused the initial delay has been resolved, later flights are delayed to allow earlier flights to leave. Using `lag()` explore how the delay of a flight is related to the delay of the immediately preceding flight.  
+6. Look at each destination. Can you find flights that are suspiciously fast? (i.e. flights that represent a potential data entry error). Compute the air time a flight relative to the shortest flight to that destination. Which flights were most delayed in the air?  
+7. Find all destinations that are flown by at least two carriers. Use that information to rank the carriers.   
+8. For each plane, count the number of flights before the first delay of greater than 1 hour.    
+
+
+```{r}
+
+# 1. They operate within each group rather than over the entire data frame.
+
+
+# 2.
+
+flights %>%
+  group_by(tailnum) %>% 
+  summarise(arr_delay = mean(arr_delay, na.rm = TRUE)) %>%
+  ungroup() %>%
+  filter(rank(desc(arr_delay)) <= 1)
+
+
+# 3.
+
+flights %>% filter(!is.na(dep_delay), !is.na(arr_delay)) %>%
+  mutate(dep_delay_flag = ifelse(dep_delay!=0,1,0),
+         arr_delay_flag = ifelse(arr_delay!=0,1,0)) %>%
+  group_by(hour) %>%
+  summarise(arr_delay = mean(arr_delay, na.rm = TRUE), 
+            nbr_arr_delay = sum(arr_delay_flag, na.rm = TRUE), 
+            dep_delay = mean(dep_delay, na.rm = TRUE), 
+            nbr_dep_delay = sum(dep_delay_flag, na.rm = TRUE), 
+            count = n()) %>%
+  ungroup() %>%
+  arrange(arr_delay, dep_delay) 
+  
+
+# 4.
+flights %>% filter(!is.na(dep_delay), !is.na(arr_delay)) %>%
+  group_by(dest) %>%
+  mutate(total_delay = sum(arr_delay),
+         prop_delay = arr_delay / sum(arr_delay))
+
+# 5. 
+
+flights %>%
+  group_by(year, month, day) %>%
+  filter(!is.na(dep_delay)) %>%
+  mutate(lag_delay = lag(dep_delay)) %>%
+  filter(!is.na(lag_delay)) %>%
+  ggplot(aes(x = dep_delay, y = lag_delay)) +
+  geom_point() +
+  geom_smooth()
+
+
+# 6.
+
+flights %>%
+  filter(!is.na(air_time)) %>%
+  group_by(dest) %>%
+  mutate(med_time = median(air_time),
+         min_time = min(air_time),
+         fast_vs_med = (air_time - med_time) / med_time,
+         fast_vs_min = (air_time - min_time) / min_time) %>%
+  arrange( fast_vs_med, desc(fast_vs_min) ) %>%
+  select(air_time, med_time, fast_vs_med, min_time, fast_vs_min, dep_time, sched_dep_time, arr_time, sched_arr_time) %>%
+  head(20)
+
+
+ # z-score
+flights %>%
+  filter(!is.na(air_time)) %>%
+  group_by(dest) %>%
+  mutate(air_time_mean = mean(air_time),
+         air_time_sd = sd(air_time),
+         z_score = (air_time - air_time_mean) / air_time_sd) %>%
+  arrange(z_score) %>%
+  select(z_score, air_time_mean, air_time_sd, air_time, dep_time, sched_dep_time, arr_time, sched_arr_time)
+
+
+flights %>%
+  filter(!is.na(air_time)) %>%
+  group_by(dest) %>%
+  mutate(air_time_diff = air_time - min(air_time)) %>%
+  arrange(desc(air_time_diff)) %>%
+  select(dest, year, month, day, carrier, flight, air_time_diff, air_time, dep_time, arr_time) %>%
+  head()
+
+
+# 7.
+
+flights %>% filter(!is.na(dep_delay), !is.na(arr_delay)) %>%
+  group_by(dest) %>%
+  count(carrier_count = n_distinct(carrier)) %>%
+  arrange(desc(carrier_count))
+
+
+flights %>% 
+  group_by(dest, carrier) %>%
+  count(carrier) %>%
+  group_by(carrier) %>%
+  count(sort = TRUE)
+
+
+# 8.
+
+flights %>% filter(!is.na(dep_delay), !is.na(arr_delay))  %>% 
+  arrange(tailnum, year, month, day, dep_time) %>%
+  group_by(tailnum) %>%
+  mutate(gt_1hour_delay = ifelse(dep_delay>60, 1, 0), 
+         sum_gt_1hour_delay = cumsum(gt_1hour_delay),
+         previous_sum_gt_1hour_delay = lag(sum_gt_1hour_delay),
+         running_count = row_number(),
+         previous_count = lag(running_count)) %>%
+  ungroup() %>%
+  filter(sum_gt_1hour_delay == 1, previous_sum_gt_1hour_delay == 0) %>%
+  select(tailnum, previous_count) %>%
+  arrange(desc(previous_count)) %>%
+  rename(prior_non_gt_1hour_delayed = previous_count)
+  
+
+flights %>%
+  arrange(tailnum, year, month, day, dep_time) %>%
+  group_by(tailnum) %>%
+  mutate(delay_gt1hr = dep_delay > 60) %>%
+  mutate(before_delay = cumsum(delay_gt1hr)) %>%
+  filter(before_delay < 1) %>%
+  count(sort = TRUE)
+
+
+```
+\ 
+
+
+*** 
+
+## 12. Tidy Data 
+
+```{r, echo=TRUE, include=TRUE}
+table1
+```
+\ 
+
+```{r, echo=TRUE, include=TRUE}
+table2
+```
+\ 
+
+```{r, echo=TRUE, include=TRUE}
+table3
+```
+\ 
+
+```{r, echo=TRUE, include=TRUE}
+table4a
+```
+\ 
+
+```{r, echo=TRUE, include=TRUE}
+table4b
+```
+\ 
+
+```{r, echo=TRUE, include=TRUE}
+table5
+```
+\ 
+
+***
+
+### 12.3 Spreading and Gathering 
+\ 
+
+
+#### 12.3.3 Exercises
+
+**Q1.** 
+
+Why are `gather()` and `spread()` not perfectly symmetrical?
+Carefully consider the following example:
+
+```{r, echo=TRUE, include=TRUE}
+
+stocks <- tibble(
+  year   = c(2015, 2015, 2016, 2016),
+  half  = c(   1,    2,     1,    2),
+  return = c(1.88, 0.59, 0.92, 0.17)
+)
+stocks
+
+stocks %>% spread(year, return)
+
+stocks %>% 
+  spread(year, return) %>% 
+  gather("year", "return", `2015`:`2016`)
+
+```
+
+(Hint: look at the variable types and think about column names.)
+Both `spread()` and `gather()` have a `convert` argument. What does it do?
+\ 
+
+**A:**
+
+The functions `spread` and `gather` are not perfectly symmetrical because column type information is not transferred between them. In the original table the column `year` was `numeric`, but after the spread-gather cyle it is `character`, because with `gather`, variable names are always converted to a character vector.
+
+The convert argument tries to convert character vectors to the appropriate type. In the background this uses the `type.convert` function.
+
+```{r, echo=TRUE, include=TRUE}
+
+stocks %>% 
+  spread(year, return) %>% 
+  gather("year", "return", `2015`:`2016`, convert = TRUE)
+
+```
+
+\ 
+
+**Q2.** 
+
+Why does this code fail?
+
+```{r, eval=FALSE, include=TRUE, echo=TRUE}
+
+table4a %>% 
+  gather(1999, 2000, key = "year", value = "cases")
+
+```
+
+*`r colFmt("Error in inds_combine(.vars, ind_list) : Position must be between 0 and n",'red')`*
+
+\ 
+
+**A:** 
+
+The code fails because the column names 1999 and 2000 are not standard and thus needs to be quoted. The tidyverse functions will interpret 1999 and 2000 without quotes as looking for the 1999th and 2000th column of the data frame. 
+
+This will work: 
+
+```{r, echo=TRUE, include=TRUE}
+
+table4a %>% 
+  gather(`1999`, `2000`, key = "year", value = "cases")
+
+```
+\ 
+
+**Q3.**
+
+Why does spreading this tibble fail? How could you add a new column to fix the problem?
+
+```{r, eval=FALSE, include=TRUE, echo=TRUE}
+
+people <- tribble(
+  ~name,             ~key,    ~value,
+  #-----------------|--------|------
+  "Phillip Woods",   "age",       45,
+  "Phillip Woods",   "height",   186,
+  "Phillip Woods",   "age",       50,
+  "Jessica Cordero", "age",       37,
+  "Jessica Cordero", "height",   156
+)
+
+people %>% spread(key, value)
+
+```
+
+*`r colFmt("Error: Duplicate identifiers for rows (1, 3)",'red')`*
+
+\ 
+
+**A:** 
+
+Spreading the data frame fails because there are two rows with `age` for *“Phillip Woods”*. We would need to add another column with an indicator of the observation number for each row. 
+
+```{r, eval=TRUE, include=TRUE, echo=TRUE}
+
+people <- tribble(
+  ~name,             ~key,    ~value, ~obs,
+  #-----------------|--------|------|------
+  "Phillip Woods",   "age",       45, 1,
+  "Phillip Woods",   "height",   186, 1,
+  "Phillip Woods",   "age",       50, 2,
+  "Jessica Cordero", "age",       37, 1,
+  "Jessica Cordero", "height",   156, 1
+)
+
+people %>% spread(key, value)
+
+
+```
+\ 
+
+**Q4.**
+
+Tidy the simple tibble below. Do you need to spread or gather it? What are the variables?
+
+```{r, eval=TRUE, include=TRUE, echo=TRUE}
+
+preg <- tribble(
+  ~pregnant, ~male, ~female,
+  "yes",     NA,    10,
+  "no",      20,    12
+)
+
+preg
+```
+
+\ 
+
+**A:**
+
+You need to gather it. The variables are:
+
+ + pregnant: logical (“yes”, “no”)
+ + sex: char
+ + count: integer
+
+```{r}
+preg %>% gather(sex, count, male, female) %>%
+  mutate(pregnant = pregnant == "yes")
+```
+\ 
+
+***
+
+### 12.4 Separating and Uniting
+\ 
+
+
+#### 12.4.3 Exercises
+
+**Q1.**
+
+What do the `extra` and `fill` arguments do in separate()? Experiment with the various options for the following two toy datasets. 
+
+\ 
+
+**A:**
+\ 
+The `extra` argument tells separate what to do if there are too many pieces, and the `fill` argument if there aren’t enough. 
+
+
+**`extra`**	
+
+If `sep` is a character vector, this controls what happens when there are too many pieces. There are three valid options: 
+
+ + *warn* (the default): emit a warning and drop extra values.  
+ + *drop*: drop any extra values without a warning.  
+ + *merge*: only splits at most length(into) times.   
+\ 
+
+
+```{r, eval=TRUE, include=TRUE, echo=TRUE}
+sep_tib <- tibble(x = c("a,b,c", "d,e,f,g", "h,i,j"))
+sep_tib
+```
+
+```{r, eval=TRUE, include=TRUE, echo=TRUE}
+sep_tib %>% 
+  separate(x, c("one", "two", "three"), sep=c(','), extra="warn")
+```
+
+```{r, eval=TRUE, include=TRUE, echo=TRUE}
+sep_tib %>% 
+  separate(x, c("one", "two", "three"), sep=c(','), extra="drop")
+```
+
+```{r, eval=TRUE, include=TRUE, echo=TRUE}
+sep_tib %>% 
+  separate(x, c("one", "two", "three"), sep=c(','), extra="merge")
+```
+\ 
+
+**`fill`** 
+
+If `sep` is a character vector, this controls what happens when there are not enough pieces. There are three valid options: 
+
+ + *warn* (the default): emit a warning and fill from the right.  
+ + *right*: fill with missing values on the right.  
+ + *left*: fill with missing values on the left.  
+\ 
+
+```{r, eval=TRUE, include=TRUE, echo=TRUE}
+sep_tib <- tibble(x = c("a,b,c", "d,e", "f,g,i")) 
+sep_tib
+```
+
+```{r, eval=TRUE, include=TRUE, echo=TRUE}
+sep_tib %>% 
+  separate(x, c("one", "two", "three"), sep=c(','), fill="warn")
+```
+
+```{r, eval=TRUE, include=TRUE, echo=TRUE}
+sep_tib %>% 
+  separate(x, c("one", "two", "three"), sep=c(','), fill="right")
+```
+
+```{r, eval=TRUE, include=TRUE, echo=TRUE}
+sep_tib %>% 
+  separate(x, c("one", "two", "three"), sep=c(','), fill="left")
+```
+\ 
+
+**Q2.**
+
+Both `unite()` and `separate()` have a `remove` argument. What does it do? Why would you set it to FALSE?
+\ 
+
+**A:** 
+
+*`remove`* If TRUE, remove input column from output data frame. 
+
+One would set it to FALSE to keep the source input column in the output data frame.  
+You would set it to FALSE if you want to create a new variable, and also keep the old one. 
+
+\ 
+
+**Q3.**
+
+Compare and contrast `separate()` and `extract()`. Why are there three variations of `separate` (by position, by separator, and with groups), but only one `unite`?
+\ 
+
+**A:** 
+
+The function `extract` uses a regular expression to find groups and split into columns. In `unite` it is unambigous since it is many columns to one, and once the columns are specified, there is only one way to do it, the only choice is the `sep`. In `separate`, it is one to many, and there are multiple ways to split the character string.  
+
+
+*** 
+
+
+## 13. Relational data
+
+### 13.1 Introduction
+
+#### 13.1.1 Prerequisites
+
+```{r}
+library(tidyverse)
+library(nycflights13)
+```
+\ 
+
+### 13.2 nycflights13
+
+```
+flights 
+airlines
+airports 
+planes 
+weather
+
+```
+
+#### 13.2.1 Exercises
+
+\ 
+
+### 13.3 Keys
+
+#### 13.3.1 Exercises 
+
+
+### 13.4 Mutating joins
+
+#### 13.4.1 Understanding joins
+
+#### 13.4.2 Inner join
+
+#### 13.4.3 Outer joins
+
+#### 13.4.4 Duplicate keys
+
+#### 13.4.5 Defining the key columns
+
+#### 13.4.6 Exercises
+
+1. Compute the average delay by destination, then join on the airports data frame so you can show the spatial distribution of delays. Here’s an easy way to draw a map of the United States:  
+```
+airports %>%
+  semi_join(flights, c("faa" = "dest")) %>%
+  ggplot(aes(lon, lat)) +
+    borders("state") +
+    geom_point() +
+    coord_quickmap()
+```
+(Don’t worry if you don’t understand what semi_join() does — you’ll learn about it next.)  
+You might want to use the size or colour of the points to display the average delay for each airport.  
+2. Add the location of the origin and destination (i.e. the lat and lon) to flights.  
+3. Is there a relationship between the age of a plane and its delays?  
+4. What weather conditions make it more likely to see a delay?  
+5. What happened on June 13 2013? Display the spatial pattern of delays, and then use Google to cross-reference with the weather.  
+
+```{r}
+
+# 1.
+
+airports %>%
+  semi_join(flights, c("faa" = "dest")) %>%
+  ggplot(aes(lon, lat)) +
+    borders("state") +
+    geom_point() +
+    coord_quickmap()
+
+avg_dest_delays <-
+  flights %>%
+  group_by(dest) %>%
+  # arrival delay NA's are cancelled flights
+  summarise(delay = mean(arr_delay, na.rm = TRUE)) %>%
+  inner_join(airports, by = c(dest = "faa"))
+
+avg_dest_delays %>%
+  ggplot(aes(lon, lat, colour = delay)) +
+    borders("state") +
+    geom_point() +
+    coord_quickmap()
+
+
+# 2. 
+
+flights %>%
+  left_join(airports, by = c(dest = "faa")) %>%
+  left_join(airports, by = c(origin = "faa")) %>%
+  head()
+
+
+# 3.
+
+plane_ages <- 
+  planes %>%
+  mutate(age = 2013 - year) %>%
+  select(tailnum, age)
+
+flights %>%
+  inner_join(plane_ages, by = "tailnum") %>%
+  group_by(age) %>%
+  filter(!is.na(dep_delay)) %>%
+  summarise(delay = mean(dep_delay)) %>%
+  ggplot(aes(x = age, y = delay)) +
+  geom_point() +
+  geom_line()
+
+
+# 4.
+
+flight_weather <-
+  flights %>%
+  inner_join(weather, by = c("origin" = "origin",
+                            "year" = "year",
+                            "month" = "month",
+                            "day" = "day",
+                            "hour" = "hour"))
+flight_weather %>%
+  group_by(precip) %>%
+  summarise(delay = mean(dep_delay, na.rm = TRUE)) %>%
+  ggplot(aes(x = precip, y = delay)) +
+    geom_line() + geom_point()
+
+
+# 5. 
+
+library(viridis)
+
+flights %>%
+  filter(year == 2013, month == 6, day == 13) %>%
+  group_by(dest) %>%
+  summarise(delay = mean(arr_delay, na.rm = TRUE)) %>%
+  inner_join(airports, by = c("dest" = "faa")) %>%
+  ggplot(aes(y = lat, x = lon, size = delay, colour = delay)) +
+  borders("state") +
+  geom_point() +
+  coord_quickmap() + 
+  scale_color_viridis()
+
+```
+
+
+#### 13.4.7 Other implementations 
+
+
+### 13.5 Filtering joins
+
+Filtering joins match observations in the same way as mutating joins, but affect the observations, not the variables. There are two types:  
+* `semi_join(x, y)` keeps all observations in x that have a match in y.  
+* `anti_join(x, y)` drops all observations in x that have a match in y.  
+
+Semi-joins are useful for matching filtered summary tables back to the original rows.  
+
+#### 13.5.1 Exercises
+
+1. What does it mean for a flight to have a missing tailnum? What do the tail numbers that don’t have a matching record in planes have in common? (Hint: one variable explains ~90% of the problems.)  
+2. Filter flights to only show flights with planes that have flown at least 100 flights.  
+3. Combine `fueleconomy::vehicles` and `fueleconomy::common` to find only the records for the most common models.  
+4. Find the 48 hours (over the course of the whole year) that have the worst delays. Cross-reference it with the `weather` data. Can you see any patterns?  
+5. What does `anti_join(flights, airports, by = c("dest" = "faa"))` tell you? What does `anti_join(airports, flights, by = c("faa" = "dest"))` tell you?
+6. You might expect that there’s an implicit relationship between plane and airline, because each plane is flown by a single airline. Confirm or reject this hypothesis using the tools you’ve learned above.
+
+```{r}
+
+# 1.
+flights %>%
+  anti_join(planes, by = "tailnum") %>%
+  count(carrier, sort = TRUE)
+
+# 2.
+planes_gt100 <- 
+  filter(flights) %>%
+  group_by(tailnum) %>%
+  count() %>%
+  filter(n > 100)
+
+flights %>%
+  semi_join(planes_gt100, by = "tailnum")
+
+# 3.
+head(fueleconomy::vehicles)
+head(fueleconomy::common)
+
+fueleconomy::vehicles %>%
+  semi_join(fueleconomy::common, by = c("make", "model"))
+
+
+# 4.
+flights %>% filter(!is.na(dep_delay) & !is.na(arr_delay) & arr_delay > 0 ) %>%
+  group_by(time_hour) %>%
+  summarise(total_delay = sum(arr_delay)) %>%
+  ungroup() %>%
+  arrange(desc(total_delay)) %>%
+  mutate(rn = min_rank())
+ 
+
+# 5. 
+
+anti_join(flights, airports, by = c("dest" = "faa"))  # are flights that go to an airport that is not in FAA list of destinations, likely foreign airports.
+
+anti_join(airports, flights, by = c("faa" = "dest")) # are US airports that don’t have a flight in the data, meaning that there were no flights to that aiport from New York in 2013.
+
+
+# 6.
+flights %>%
+  select(tailnum, carrier) %>%
+  distinct() %>%
+  filter(!is.na(tailnum)) %>%
+  group_by(tailnum) %>%
+  count() %>%
+  filter(n > 1) %>%
+  arrange(desc(n), tailnum)
+
+
+```
+
+\ 
+
+### 13.6 Join problems
+
+
+### 13.7 Set operations
+
+* `intersect(x, y)`: return only observations in both x and y.  
+* `union(x, y)`: return unique observations in x and y.  
+* `setdiff(x, y)`: return observations in x, but not in y.  
+
+
+***
+
+
+## 14. Strings
+
+
+### 14.1 Introduction
+
+#### 14.1.1 Prerequisites
+
+```{r}
+library(tidyverse)
+library(stringr)
+```
+\ 
+
+### 14.2 String basics
+
+```{r}
+x <- c("\"", "\\")
+x
+#> [1] "\"" "\\"
+writeLines(x)
+
+x <- "\u00b5"
+x
+
+c("one", "two", "three")
+
+```
+
+\ 
+#### 14.2.1 String length
+
+```{r}
+
+str_length(c("a", "R for data science", NA))
+
+
+```
+
+#### 14.2.2 Combining strings
+
+```{r}
+str_c("x", "y")
+
+str_c("x", "y", "z")
+
+str_c("x", "y", sep = ", ")
+
+x <- c("abc", NA)
+str_c("|-", x, "-|")
+
+str_c("|-", str_replace_na(x), "-|")
+
+# str_c() is vectorised, and it automatically recycles shorter vectors to the same length as the longest:
+str_c("prefix-", c("a", "b", "c"), "-suffix")
+
+
+str_c(c("x", "y", "z"), collapse = ", ")
+
+```
+
+
+Objects of length 0 are silently dropped. This is particularly useful in conjunction with if:  
+
+```{r}
+name <- "Hadley"
+time_of_day <- "morning"
+birthday <- TRUE
+
+str_c(
+  "Good ", time_of_day, " ", name,
+  if (birthday) " and HAPPY BIRTHDAY",
+  "."
+)
+```
+\ 
+
+
+#### 14.2.3 Subsetting strings
+
+You can extract parts of a string using str_sub(). As well as the string, str_sub() takes start and end arguments which give the (inclusive) position of the substring:  
+
+```{r}
+x <- c("Apple", "Banana", "Pear")
+str_sub(x, 1, 3)
+
+str_sub(x, -3, -1)
+
+str_sub(x, 1, 1) <- str_to_lower(str_sub(x, 1, 1))
+x
+
+str_sub(x, 1, 1) <- str_to_upper(str_sub(x, 1, 1))
+x
+
+```
+
+
+#### 14.2.4 Locales
+
+```{r}
+
+str_to_upper(c("i", "ı"))
+
+str_to_upper(c("i", "ı"), locale = "tr")
+
+```
+
+```{r}
+x <- c("apple", "eggplant", "banana")
+
+str_sort(x, locale = "en")  # English
+
+str_sort(x, locale = "haw") # Hawaiian
+
+```
+
+
+#### 14.2.5 Exercises
+
+1. In code that doesn’t use stringr, you’ll often see `paste()` and `paste0()`. What’s the difference between the two functions? What stringr function are they equivalent to? How do the functions differ in their handling of `NA`?  
+2. In your own words, describe the difference between the `sep` and `collapse` arguments to `str_c()`.  
+3. Use `str_length()` and `str_sub()` to extract the middle character from a string. What will you do if the string has an even number of characters?  
+4. What does `str_wrap()` do? When might you want to use it?  
+5. What does `str_trim()` do? What’s the opposite of `str_trim()`?  
+6. Write a function that turns (e.g.) a vector `c("a", "b", "c")` into the string `a, b, and c`. Think carefully about what it should do if given a vector of length 0, 1, or 2.  
+
+```{r}
+# 1. paste seperates strings by spaces by default, while paste0 does not seperate strings with spaces by default
+paste("foo", "bar")
+
+paste0("foo", "bar")
+
+# Since str_c does not seperate strings with spaces by default it is closer in behabior to paste0.
+
+str_c("foo", "bar")
+
+# str_c and the paste function handle NA differently. The function str_c propogates NA, if any argument is a missing value, it returns a missing value. 
+
+str_c("foo", NA)
+
+paste("foo", NA)
+
+paste0("foo", NA)
+
+
+# 2. The sep argument is the string inserted between argugments to str_c, while collapse is the string used to separate any elements of the character vector into a character vector of length one.
+
+
+# 3. 
+x <- c("a", "abc", "abcd", "abcde", "abcdef")
+L <- str_length(x)
+m <- ceiling(L / 2)
+str_sub(x, m, m)
+
+
+# 4. The function str_wrap wraps text so that it fits within a certain width. This is useful for wrapping long strings of text to be typeset.
+
+
+# 5. The function str_trim trims the whitespace from a string.
+
+str_trim(" abc ")
+
+str_trim(" abc ", side = "left")
+
+str_trim(" abc ", side = "right")
+
+# The opposite of str_trim is str_pad which adds characters to each side.
+str_pad("abc", 5, side = "both")
+
+str_pad("abc", 4, side = "right")
+
+str_pad("abc", 4, side = "left")
+
+
+# 6.
+str_commasep <- function(x, sep = ", ", last = ", and ") {
+  if (length(x) > 1) {
+    str_c(str_c(x[-length(x)], collapse = sep),
+                x[length(x)],
+                sep = last)
+  } else {
+    x
+  }
+}
+
+str_commasep("")
+ 
+str_commasep("a")
+ 
+str_commasep(c("a", "b"))
+ 
+str_commasep(c("a", "b", "c"))
+
+```
+
+
+### 14.3 Matching patterns with regular expressions
+
+To learn regular expressions, we’ll use `str_view()` and `str_view_all()`. These functions take a character vector and a regular expression, and show you how they match.  
+
+
+#### 14.3.1 Basic matches
+
+```{r}
+x <- c("apple", "banana", "pear")
+str_view(x, "an")
+
+str_view(x, ".a.")
+
+
+#To create the regular expression, we need \\
+dot <- "\\."
+dot
+
+# But the expression itself only contains one:
+writeLines(dot)
+
+# And this tells R to look for an explicit .
+str_view(c("abc", "a.c", "bef"), "a\\.c")
+
+
+x <- "a\\b"
+writeLines(x)
+
+str_view(x, "\\\\")
+
+```
+\ 
+
+
+##### 14.3.1.1 Exercises
+
+1. Explain why each of these strings don’t match a \: "\", "\\", "\\\".  
+2. How would you match the sequence "'\?  
+3. What patterns will the regular expression \..\..\.. match? How would you represent it as a string?  
+
+```
+# 1.
+\": This will escape the next character in the R string.  
+"\\": This will resolve to \ in the regular expression, which will escape the next character in the regular expression.  
+"\\\": The first two backslashes will resolve to a literal backslash in the regular expression, the third will escape the next character. So in the regular expresion, this will escape some escaped character.
+
+# 2.
+
+
+# 3.
+
+```
+\ 
+
+
+#### 14.3.2 Anchors
+
+
+* ^ to match the start of the string.  
+* $ to match the end of the string.  
+
+
+##### 14.3.2.1 Exercises *
+ + 14.3.2.1
+ 
+1. How would you match the literal string "$^$"?  
+2. Given the corpus of common words in stringr::words, create regular expressions that find all words that:  
+    1. Start with “y”.  
+    2. End with “x”  
+    3. Are exactly three letters long. (Don’t cheat by using str_length()!)  
+    4. Have seven letters or more.  
+Since this list is long, you might want to use the `match` argument to `str_view()` to show only the matching or non-matching words.  
+
+ 
+```{r}
+
+# 1.
+x <- 'How would you match the literal string "$^$"?'
+x
+
+str_view(x, "\\$\\^\\$")
+
+# 2.
+x <- stringr::words
+
+# 2.1
+str_subset(x, "^y")
+str_view(x, "^y", match = T)
+
+# 2.2
+str_subset(x, "x$")
+str_view(x, "x$", match = T)
+
+# 2.3
+str_subset(x, "^\\w{3}$")
+str_view(x, "^\\w{3}$", match = T)
+
+# 2.4
+str_subset(x, "\\w{7,}")
+str_view(x, "\\w{7,}", match = T)
+
+```
+\ 
+
+ 
+#### 14.3.3 Character classes and alternatives 
+ 
+##### 14.3.3.1 Exercises *
+ + 14.3.3.1  
+ 
+1. Create regular expressions to find all words that:  
+    1. Start with a vowel.  
+    2. That only contain consonants. (Hint: thinking about matching “not”-vowels.)  
+    3. End with ed, but not with eed.  
+    4. End with ing or ise.  
+2. Empirically verify the rule “i before e except after c”.  
+3. Is “q” always followed by a “u”?  
+4. Write a regular expression that matches a word if it’s probably written in British English, not American English.  
+\ 
+
+British English uses:  
+* “ou” instead of “o”  
+* use of “ae” and “oe” instead of “a” and “o”  
+* ends in ise instead of ize  
+* ending yse  
+
+5. Create a regular expression that will match telephone numbers as commonly written in your country.  
+
+ 
+```{r}
+
+# 1.
+x <- stringr::words
+
+# 1.1
+str_view(x, "^[aeiou]", match = T)
+
+# 1.2
+str_view(x, "^[^aeiou]+$", match = T)
+
+# 1.3
+str_view(x, "^ed$|[^e]ed$", match = T)
+#str_view(x, "ed$", match = T)
+
+# 1.4
+str_view(x, "(ing|ise)$", match = T)
+
+
+# 2.
+str_view(x, "(cei|[^c]ie)", match = TRUE)
+str_view(x, "(cie|[^c]ei)", match = TRUE)
+
+# Counts
+sum(str_detect(stringr::words, "(cei|[^c]ie)"))
+sum(str_detect(stringr::words, "(cie|[^c]ei)"))
+
+
+# 3.
+str_view(x, "q[^u]", match = TRUE)
+
+
+# 4.
+str_view(x, "ou|ise^|ae|oe|yse^", match = TRUE)
+
+
+# 5.
+x <- c("123-456-7890", "1235-2351")
+str_view(x, "\\d{3}-\\d{3}-\\d{4}")
+
+```
+ 
+\ 
+
+#### 14.3.4 Repetition
+
+By default these matches are “greedy”: they will match the longest string possible. You can make them “lazy”, matching the shortest string possible by putting a ? after them. This is an advanced feature of regular expressions, but it’s useful to know that it exists:  
+
+
+##### 14.3.4.1 Exercises *
+ + 14.3.4.1
+
+1. Describe the equivalents of ?, +, * in {m,n} form.
+2. Describe in words what these regular expressions match: (read carefully to see if I’m using a regular expression or a string that defines a regular expression.)  
+    1. ^.*$  
+    2. "\\{.+\\}"  
+    3. \d{4}-\d{2}-\d{2}  
+    4. "\\\\{4}"  
+3. Create regular expressions to find all words that:  
+    1. Start with three consonants.  
+    2. Have three or more vowels in a row.  
+    3. Have two or more vowel-consonant pairs in a row.  
+    4. Solve the beginner regexp crosswords at https  
+
+```{r}
+
+# 1. 
+# The equivalent of ? is {,1}, matching at most 1. 
+# The equivalent of + is {1,}, matching 1 or more.
+# There is no direct equivalent of * in {m,n} form since there are no bounds on the matches: it can be 0 up to infinity matches.
+
+# 2.1 Any string
+
+# 2.2 Any string with curly braces surrounding at least one character.
+
+# 2.3 
+
+# 2.4
+
+
+```
+
+
+
+
+
+
+
+ 
+ + 14.3.5.1
+ + 14.4.2
+ + 14.4.5.1 
+
+
+

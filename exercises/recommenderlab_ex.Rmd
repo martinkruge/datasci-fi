@@ -1,0 +1,24 @@
+---
+title: "Untitled"
+author: "Martin Kruger"
+date: "03 September 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(recommenderlab)
+
+data(MovieLense)
+MovieLense@data
+
+class(MovieLense)
+
+methods(class = class(MovieLense))
+
+```
+
