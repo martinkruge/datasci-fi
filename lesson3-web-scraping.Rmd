@@ -101,6 +101,7 @@ as.tibble(ewn_text)
 
 The table above contains some stuff we don't want (like [WATCH]). We'll look at ways to clean up text later.
 
+
 ## Example 2: Scraping tables
 
 One especially useful form of scaping is getting tables containing data from websites. This example shows you how to do that. 

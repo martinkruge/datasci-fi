@@ -48,7 +48,7 @@ library(jsonlite)
 
 tweets <- data.frame()    
 for(i in 2009:2017){
-    x <- fromJSON(txt=paste0("data/condensed_",i,".json"),simplifyDataFrame = T)
+    x <- fromJSON(txt=paste0("data/condensed_",i,".json"), simplifyDataFrame = T)
     tweets <- rbind.data.frame(tweets, x)
 }
 rm(x)
@@ -664,3 +664,30 @@ sidd_tidy <- data.frame(id = 1, text = html_text(html_nodes(sidd, css="body")))
 Use `unnest_tokens()` to plot a frequency distribution of words used in the novel. Arrange the histogram so that words appear from left to right in order of their frequency of occurence. What do you find? Word frequency distributions often follow the same form, see the section of TMR on ["Zipf's law"](http://tidytextmining.com/tfidf.html#zipfs-law) for details. 
 3.  Using the same data as above, and a different call to `unnest_tokens()`, plot the distribution of sentence lengths in *Siddhartha*.
 4. How might you improve the tweet generator so that the sentences that it generates are not entirely independent of one another?
+
+***
+
+
+## Completed Exercises 
+
+1. Done
+
+2. 
+
+```{r}
+
+library(gutenbergr)
+library(rvest)
+
+gutenberg_metadata %>% filter(title == "Siddhartha")
+
+sidd <- read_html("http://www.gutenberg.org/cache/epub/2500/pg2500.txt")
+
+sidd_tidy <- data.frame(id = 1, text = html_text(html_nodes(sidd, css="body")))
+
+```
+
+
+
+
+

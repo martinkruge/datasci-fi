@@ -244,6 +244,7 @@ bigrams_separated <- bigrams_separated %>%
     select(month,word1,word2,sentiment1,sentiment2,everything())
 
 bigrams_separated
+
 ```
 
 Now we need a list of words that we consider to be negation words. I'll use the following set, taken from TMR [Chapter 4](http://tidytextmining.com/ngrams.html), and show a few examples.
